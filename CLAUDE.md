@@ -14,9 +14,10 @@
   - 코드, 영상, Claude Code 대화 기록이 전부 서버에 남아 어디서 접속해도 이어서 작업
   - 테스트 영상은 구글 드라이브로 보내 폰/브라우저로 확인
 - **운영**: 같은 서버에서 cron으로 매일 자동 실행 (사용자 PC 꺼져 있어도 동작)
-- **대본 생성**: 유료 API 키 사용 안 함. 서버에 설치된 **Gemini CLI**를 헤드리스 모드로 호출 (사용자의 Gemini 구독 사용)
-  - Gemini 실패/한도 초과 시 **Claude Code 헤드리스 모드**(`claude -p`)로 자동 전환
-  - Claude Code 구독은 개발용으로 아껴야 하므로 대본 생성은 Gemini가 주력
+- **대본 생성**: 유료 API 키 사용 안 함. 서버에 설치된 **Antigravity CLI**(`agy -p`)를 헤드리스 모드로 호출 (사용자의 Google AI Pro 구독 사용)
+  - Gemini CLI는 2026-06-18부터 개인 계정 지원이 종료되어 Antigravity CLI로 대체함
+  - Antigravity 실패/한도 초과 시 **Claude Code 헤드리스 모드**(`claude -p`)로 자동 전환
+  - Claude Code 구독은 개발용으로 아껴야 하므로 대본 생성은 Antigravity(Gemini 모델)가 주력
 - **음성·자막·합성**: 전부 로컬 처리 (edge-tts, FFmpeg)
 - **결과 전달**: 채널별 날짜 폴더에 저장 → 구글 드라이브 동기화 → 사용자가 폰으로 확인·업로드
 - **성과 수집**: YouTube Data/Analytics API (읽기 전용, 업로드 권한 없음)
@@ -43,7 +44,7 @@
 | 모듈 | 역할 |
 |---|---|
 | `planner` | 채널 설정 + 성과 데이터 + 주제 기록을 보고 오늘 만들 스타일·주제 결정 |
-| `llm` | Gemini CLI / Claude Code CLI 호출 래퍼. 자동 전환, 재시도, 하루 호출 상한, 호출 간격, 인증 만료 감지 |
+| `llm` | Antigravity CLI / Claude Code CLI 호출 래퍼. 자동 전환, 재시도, 하루 호출 상한, 호출 간격, 인증 만료 감지 |
 | `script` | 대본·제목·설명·해시태그를 JSON으로 생성하고 검증 (형식 깨짐, 길이 부족 시 재요청) |
 | `tts` | edge-tts로 음성 생성 + 타이밍 정보 저장 |
 | `subtitle` | 타이밍 정보로 쇼츠식 자막 생성 (필요 시 Whisper로 보완) |
@@ -122,7 +123,7 @@ shorts-factory/
 | 영역 | 도구 |
 |---|---|
 | 언어 | Python 3.11+ |
-| 대본 | Gemini CLI (주력), Claude Code CLI (예비) |
+| 대본 | Antigravity CLI `agy` (주력), Claude Code CLI (예비) |
 | 음성 | edge-tts |
 | 자막 타이밍 | edge-tts 타이밍 정보, 필요 시 Whisper |
 | 영상 합성 | FFmpeg |
@@ -140,10 +141,10 @@ shorts-factory/
 
 | 단계 | 내용 | 완료 기준 |
 |---|---|---|
-| 0 | 서버 대여 → 웹 콘솔 접속 → 보안 설정(방화벽, fail2ban) → Claude Code 설치 → **code-server + HTTPS 세팅** → tmux, Python, FFmpeg, Git, Node.js, Gemini CLI, rclone 구글 드라이브 연결 | PC방 브라우저로 code-server 접속 가능, 각 도구 버전 확인, 테스트 파일이 드라이브에 올라감 |
+| 0 | 서버 대여 → 웹 콘솔 접속 → 보안 설정(방화벽, fail2ban) → Claude Code 설치 → **code-server + HTTPS 세팅** → tmux, Python, FFmpeg, Git, Node.js, Antigravity CLI, rclone 구글 드라이브 연결 | PC방 브라우저로 code-server 접속 가능, 각 도구 버전 확인, 테스트 파일이 드라이브에 올라감 |
 | 1 | 영상 한 편 만들기 | 직접 쓴 대본 txt → 자막 달린 세로 mp4 |
 | 2 | 품질 다듬기 | 자막 디자인·배경음악·배경 랜덤 선택, 폰으로 봐도 자연스러움 |
-| 3 | 대본 자동화 | 주제 한 줄 → Gemini CLI 대본 → 완성 영상. Claude 자동 전환 동작 |
+| 3 | 대본 자동화 | 주제 한 줄 → Antigravity CLI 대본 → 완성 영상. Claude 자동 전환 동작 |
 | 4 | 스타일 템플릿 | 3종 이상 템플릿으로 각각 영상 생성 |
 | 5 | 다채널 | 채널 설정 2~3개, 채널별 폴더 저장 |
 | 6 | 주제 자동 선정 + 중복 방지 | 입력 없이 실행해도 매번 새 주제 |
@@ -154,7 +155,7 @@ shorts-factory/
 
 ## 11. 안정성 장치 (필수)
 
-- LLM 호출: 하루 상한, 호출 간격, 재시도, Gemini → Claude 자동 전환
+- LLM 호출: 하루 상한, 호출 간격, 재시도, Antigravity → Claude 자동 전환
 - 인증 만료 감지 시 제작 중단 + 알림 (재로그인 후 재개)
 - 모든 단계 로그 기록, 실패한 영상만 건너뛰고 나머지는 계속 진행
 - 오래된 output 자동 정리 (디스크 관리)
@@ -195,5 +196,14 @@ shorts-factory/
 
 ## 현재 진행 상황
 
-- 현재 단계: 0 (서버 대여 전)
+- 현재 단계: 0 완료 (사용자 확인 대기) → 다음: 1단계 영상 한 편 만들기
 - 메모:
+  - 서버: AWS Lightsail 서울, 고정 IP 15.165.80.188, 2코어/2GB + 스왑 2GB (권장 사양보다 작음, 영상 합성 때 확인 필요)
+  - code-server: https://15-165-80-188.sslip.io (Caddy 자동 HTTPS → 127.0.0.1:8080)
+  - 방화벽 ufw: 22, 80, 443만 개방 / fail2ban(sshd) 적용
+  - 설치 완료: FFmpeg 6.1.1, Node.js 24, Antigravity CLI 1.2.14 (`~/.local/bin/agy`, Google AI Pro 로그인), Claude Code
+  - `agy -p`, `claude -p` 헤드리스 호출 모두 동작 확인
+  - rclone 1.75: 리모트 이름 `gdrive`, 권한 `drive.file`(rclone이 만든 파일만 접근), 드라이브 폴더 `shorts-factory/`
+    - 전용 OAuth 클라이언트 사용 (구글 클라우드 프로젝트 `shorts-factory`, 앱 게시 상태 = 프로덕션 → 토큰 7일 만료 없음)
+    - OAuth 동의 화면용 홈페이지/개인정보처리방침: `/var/www/app/` (Caddy가 `/app/*` 경로로 제공)
+  - 서버에서 로그인 필요할 때: 로그인 주소를 사용자에게 주고, 돌아온 코드나 주소를 받아 서버에서 대신 입력 (tmux send-keys / curl 127.0.0.1:53682)
