@@ -64,7 +64,10 @@ def chunk_words(words: list[dict], max_chars: int, max_words: int, pause_split: 
     for phrase in _split_phrases(words, pause_split):
         for ws in _balanced_split(phrase, max_chars, max_words):
             # 쇼츠 자막은 마침표·쉼표 없이 (물음표·느낌표는 유지)
-            chunks.append({"text": _text(ws).rstrip(".,"), "start": ws[0]["start"], "end": ws[-1]["end"]})
+            texts = [w["text"] for w in ws]
+            texts[-1] = texts[-1].rstrip(".,")
+            chunks.append({"text": " ".join(texts), "words": [dict(w, text=t) for w, t in zip(ws, texts)],
+                           "start": ws[0]["start"], "end": ws[-1]["end"]})
     # 다음 자막이 나올 때까지 이어서 보여주기 (깜빡임 방지, 긴 쉼은 0.5초까지만)
     for a, b in zip(chunks, chunks[1:]):
         a["end"] = min(b["start"], a["end"] + 0.5)
@@ -80,9 +83,33 @@ def _ass_time(t: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
+def _color(hex_rgb: str) -> str:
+    """'#RRGGBB' → ASS 색 '&HBBGGRR&'."""
+    h = hex_rgb.lstrip("#")
+    return f"&H{h[4:6]}{h[2:4]}{h[0:2]}&".upper()
+
+
+def _chunk_events(c: dict, sub: dict) -> list[str]:
+    """자막 한 덩어리 → 단어마다 이벤트 하나. 지금 읽는 단어만 강조색, 덩어리 첫 등장 때 톡 튀어나옴."""
+    hi = _color(sub["highlight_color"])
+    words = c["words"]
+    events = []
+    for i, w in enumerate(words):
+        start = c["start"] if i == 0 else w["start"]
+        end = words[i + 1]["start"] if i + 1 < len(words) else c["end"]
+        if end <= start:
+            continue
+        parts = [f"{{\\c{hi}}}{x['text']}{{\\c&HFFFFFF&}}" if j == i else x["text"] for j, x in enumerate(words)]
+        pop = "{\\fscx75\\fscy75\\t(0,90,\\fscx100\\fscy100)}" if i == 0 else ""
+        events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Main,,0,0,0,,{pop}{' '.join(parts)}")
+    return events
+
+
 def build_ass(chunks: list[dict]) -> str:
     cfg = config.load()
     sub, vid = cfg["subtitle"], cfg["video"]
+    # 화면 위에서 position_y 지점에 자막 가운데가 오도록 (쇼츠 하단 UI와 안 겹치게 가운데보다 약간 아래)
+    margin_v = int(vid["height"] * (1 - sub["position_y"]) - sub["font_size"] / 2)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {vid['width']}
@@ -92,15 +119,12 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Main,{sub['font_name']},{sub['font_size']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{sub['outline']},3,5,80,80,0,1
+Style: Main,{sub['font_name']},{sub['font_size']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{sub['outline']},4,2,60,60,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    lines = [
-        f"Dialogue: 0,{_ass_time(c['start'])},{_ass_time(c['end'])},Main,,0,0,0,,{c['text']}"
-        for c in chunks
-    ]
+    lines = [e for c in chunks for e in _chunk_events(c, sub)]
     return header + "\n".join(lines) + "\n"
 
 

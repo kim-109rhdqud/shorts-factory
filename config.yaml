@@ -25,16 +25,31 @@ video:
 
 voice:                 # 채널 설정이 없을 때 기본값
   name: ko-KR-InJoonNeural
-  rate: "+10%"
+  rate: "+35%"
 
 subtitle:
   font_dir: assets/fonts
   font_name: Pretendard ExtraBold
-  font_size: 96
-  outline: 7
-  max_chars: 14        # 한 화면 자막 최대 글자 수
+  font_size: 118
+  outline: 9
+  highlight_color: "#FFE400"   # 지금 읽는 단어 강조색 (노랑)
+  position_y: 0.62     # 자막 세로 위치 (0=맨 위, 1=맨 아래)
+  max_chars: 12        # 한 화면 자막 최대 글자 수
   max_words: 3         # 한 화면 자막 최대 단어 수
   pause_split: 0.35    # 이 시간(초) 이상 쉬면 자막을 끊음
 
 background:
-  colors: ["0x1e3c72", "0x2a5298", "0x6a3093"]   # 그라데이션 색
+  dir: assets/backgrounds
+  pool: nature                # 기본 배경 풀 (채널 설정이 생기면 채널별로)
+  segment_sec: [3.5, 6.0]     # 클립 하나를 보여주는 길이 (초, 최소~최대)
+  brightness: -0.12           # 자막이 잘 보이게 살짝 어둡게
+  saturation: 1.1
+  colors: ["0x1e3c72", "0x2a5298", "0x6a3093"]   # 클립이 없을 때 그라데이션 색
+
+music:
+  pool: bright                # 기본 음악 풀 (assets/music 아래 폴더)
+  volume: 0.22                # 음악 기본 크기 (목소리 대비)
+  duck_threshold: 0.03        # 목소리가 이보다 크면 음악을 줄임
+  duck_ratio: 6
+  fade_in: 1.0
+  fade_out: 1.5

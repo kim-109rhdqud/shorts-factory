@@ -1,0 +1,8 @@
+# 배경 영상 풀 (풀 이름 → Pixabay 검색어들). mp4는 git에 올리지 않고 `python -m src.fetch_assets backgrounds`로 받는다.
+# Pixabay Content License: 무료, 상업적 사용 가능, 출처 표기 불필요. 받은 영상 정보는 각 풀 폴더의 _meta.json에 기록.
+clips_per_pool: 10
+pools:
+  nature: [forest, waterfall, mountains, flowers, clouds sky]
+  ocean: [ocean waves, underwater, coral reef, sea]
+  space: [galaxy, stars night sky, nebula, planet]
+  city: [city night, city timelapse, street, neon]

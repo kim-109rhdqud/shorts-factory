@@ -1,0 +1,19 @@
+# 배경음악 목록 (풀 이름 → 곡들). mp3 파일은 git에 올리지 않고 `python -m src.fetch_assets music`으로 받는다.
+# 모든 곡: Kevin MacLeod (incompetech.com), CC BY 4.0 → 영상 설명에 출처 표기 필수 (업로드 정보에 자동 삽입)
+license: "Licensed under Creative Commons: By Attribution 4.0\nhttp://creativecommons.org/licenses/by/4.0/"
+author: "Kevin MacLeod (incompetech.com)"
+base_url: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/"
+
+pools:
+  bright:      # 밝고 경쾌 (잡지식, 랭킹, 퀴즈)
+    - Carefree
+    - Fluffing a Duck
+    - Monkeys Spinning Monkeys
+    - Sneaky Snitch
+    - Easy Lemon
+    - Local Forecast - Elevator
+  calm:        # 차분 (명언, 썰)
+    - Wallpaper
+    - Inspired
+  mystery:     # 미스터리 (신기한 사실, 반전)
+    - Investigations

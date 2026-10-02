@@ -8,3 +8,7 @@ logs/
 __pycache__/
 *.pyc
 .venv/
+# 무료 소스 파일 (목록 파일로 다시 받을 수 있음)
+assets/music/**/*.mp3
+assets/backgrounds/**/*.mp4
+assets/backgrounds/*/_meta.json
