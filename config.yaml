@@ -1,0 +1,40 @@
+# shorts-factory 공통 설정
+# 경로는 프로젝트 폴더 기준 상대 경로
+
+tools:                 # 외부 프로그램 실행 파일 (PATH에 있으면 이름만)
+  ffmpeg: ffmpeg
+  ffprobe: ffprobe
+  rclone: rclone
+  agy: ~/.local/bin/agy
+  claude: claude
+
+paths:
+  output: output
+  work: output/_work   # 중간 파일 (음성, 자막 등)
+
+drive:
+  remote: "gdrive:shorts-factory"   # rclone 리모트:드라이브 폴더
+
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  crf: 23              # 화질 (낮을수록 고화질·큰 파일)
+  preset: veryfast     # 인코딩 속도
+  threads: 2           # 서버 CPU 2코어
+
+voice:                 # 채널 설정이 없을 때 기본값
+  name: ko-KR-InJoonNeural
+  rate: "+10%"
+
+subtitle:
+  font_dir: assets/fonts
+  font_name: Pretendard ExtraBold
+  font_size: 96
+  outline: 7
+  max_chars: 14        # 한 화면 자막 최대 글자 수
+  max_words: 3         # 한 화면 자막 최대 단어 수
+  pause_split: 0.35    # 이 시간(초) 이상 쉬면 자막을 끊음
+
+background:
+  colors: ["0x1e3c72", "0x2a5298", "0x6a3093"]   # 그라데이션 색

@@ -196,7 +196,7 @@ shorts-factory/
 
 ## 현재 진행 상황
 
-- 현재 단계: 0 완료 → 다음: 1단계 영상 한 편 만들기 (계획만 제시, 아직 시작 안 함)
+- 현재 단계: 1 완료 → 다음: 2단계 품질 다듬기
 - 메모:
   - 서버: AWS Lightsail 서울, 고정 IP 15.165.80.188, 2코어/2GB + 스왑 2GB (권장 사양보다 작음, 영상 합성 때 확인 필요)
   - code-server: https://15-165-80-188.sslip.io (Caddy 자동 HTTPS → 127.0.0.1:8080)
@@ -207,3 +207,8 @@ shorts-factory/
     - 전용 OAuth 클라이언트 사용 (구글 클라우드 프로젝트 `shorts-factory`, 앱 게시 상태 = 프로덕션 → 토큰 7일 만료 없음)
     - OAuth 동의 화면용 홈페이지/개인정보처리방침: `/var/www/app/` (Caddy가 `/app/*` 경로로 제공)
   - 서버에서 로그인 필요할 때: 로그인 주소를 사용자에게 주고, 돌아온 코드나 주소를 받아 서버에서 대신 입력 (tmux send-keys / curl 127.0.0.1:53682)
+  - 1단계: `.venv/bin/python -m src.make_video 대본.txt --channel 채널` → `output/<채널>/<날짜>/NNN.mp4` + 드라이브 업로드
+    - 43초 영상 합성 약 70초, 최대 메모리 약 370MB (그라데이션 배경 기준)
+    - 목소리: 당분간 edge-tts `ko-KR-InJoonNeural` 유지 (사용자 결정). 유료 TTS(타입캐스트·일레븐랩스 등)는 채널 성과가 나면 재검토
+    - 주의: edge-tts는 MS 읽어주기 비공식 사용 → 수익 채널 장기 사용은 약관상 애매. 유료 전환 시 `tts` 모듈만 교체
+    - 자막 폰트: Pretendard ExtraBold (OFL, `assets/fonts/`)
