@@ -136,9 +136,9 @@ def overlay_events(segments: list[dict]) -> list[str]:
 
 
 def build_ass(chunks: list[dict], segments: list[dict] | None = None, layout: dict | None = None,
-              header: str | None = None) -> str:
+              header: str | None = None, overrides: dict | None = None) -> str:
     cfg = config.load()
-    sub, vid = cfg["subtitle"], cfg["video"]
+    sub, vid = {**cfg["subtitle"], **(overrides or {})}, cfg["video"]
     layout = layout or {}
     # 화면 위에서 position_y 지점에 자막 가운데가 오도록 (쇼츠 하단 UI와 안 겹치게 가운데보다 약간 아래)
     margin_v = int(vid["height"] * (1 - sub["position_y"]) - sub["font_size"] / 2)
@@ -171,8 +171,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def make_subtitle(words_json: Path, ass_path: Path, segments: list[dict] | None = None,
-                  layout: dict | None = None, header: str | None = None) -> Path:
-    """segments와 layout을 주면 위쪽 고정 표시(순위 등)도 함께 그린다."""
+                  layout: dict | None = None, header: str | None = None, overrides: dict | None = None) -> Path:
+    """segments와 layout을 주면 위쪽 고정 표시(순위 등)도 함께 그린다. overrides: 채널별 자막 설정(강조색 등)."""
     sub = config.load()["subtitle"]
     words = json.loads(words_json.read_text(encoding="utf-8"))
     chunks = chunk_words(words, sub["max_chars"], sub["max_words"], sub["pause_split"])
@@ -180,7 +180,7 @@ def make_subtitle(words_json: Path, ass_path: Path, segments: list[dict] | None 
         segments = [dict(s, show_until=n["start"]) for s, n in zip(segments, segments[1:])] + [
             dict(segments[-1], show_until=chunks[-1]["end"])]
     ass_path.parent.mkdir(parents=True, exist_ok=True)
-    ass_path.write_text(build_ass(chunks, segments, layout, header), encoding="utf-8")
+    ass_path.write_text(build_ass(chunks, segments, layout, header, overrides), encoding="utf-8")
     return ass_path
 
 

@@ -1,0 +1,12 @@
+name: 순위 연구소            # 가칭
+styles: [ranking]
+language: ko
+voice: ko-KR-HyunsuMultilingualNeural
+speech_rate: "+35%"
+voice_pitch: "+0Hz"
+daily_count: 2
+music_pools: [bright]
+subtitle:
+  highlight_color: "#4FD8FF"     # 하늘색
+youtube_channel_id: ""
+banned_topics: []

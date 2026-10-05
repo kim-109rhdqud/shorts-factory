@@ -1,0 +1,14 @@
+name: 오늘의 썰              # 가칭
+styles: [story]
+language: ko
+voices:                          # 화자 성별 → 목소리 (썰 스타일)
+  female: ko-KR-SunHiNeural
+  male: ko-KR-InJoonNeural
+speech_rate: "+30%"
+voice_pitch: "-4Hz"              # 다른 채널과 구분되게 살짝 낮은 톤
+daily_count: 2
+music_pools: [calm, mystery]
+subtitle:
+  highlight_color: "#FF7EB6"     # 분홍
+youtube_channel_id: ""
+banned_topics: []

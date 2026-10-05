@@ -16,8 +16,8 @@ import edge_tts
 from src import config
 
 
-async def _synthesize(text: str, voice: str, rate: str, mp3_path: Path) -> list[dict]:
-    communicate = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
+async def _synthesize(text: str, voice: str, rate: str, pitch: str, mp3_path: Path) -> list[dict]:
+    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch, boundary="WordBoundary")
     words = []
     with open(mp3_path, "wb") as f:
         async for chunk in communicate.stream():
@@ -47,17 +47,19 @@ def _restore_punctuation(text: str, words: list[dict]) -> None:
         cursor = end
 
 
-def synthesize(text: str, out_dir: Path, voice: str | None = None, rate: str | None = None) -> tuple[Path, Path]:
+def synthesize(text: str, out_dir: Path, voice: str | None = None, rate: str | None = None,
+               pitch: str | None = None) -> tuple[Path, Path]:
     """음성과 타이밍 파일을 out_dir에 만들고 (mp3 경로, json 경로)를 돌려준다."""
     cfg = config.load()["voice"]
     voice = voice or cfg["name"]
     rate = rate or cfg["rate"]
+    pitch = pitch or "+0Hz"
     out_dir.mkdir(parents=True, exist_ok=True)
     mp3_path = out_dir / "voice.mp3"
     json_path = out_dir / "words.json"
 
     text = " ".join(text.split())  # 줄바꿈·연속 공백 정리
-    words = asyncio.run(_synthesize(text, voice, rate, mp3_path))
+    words = asyncio.run(_synthesize(text, voice, rate, pitch, mp3_path))
     if not words:
         raise RuntimeError("edge-tts가 단어 타이밍을 주지 않았습니다.")
     _restore_punctuation(text, words)
@@ -71,12 +73,12 @@ def _duration(path: Path) -> float:
     return float(out.stdout.strip())
 
 
-def synthesize_segments(segments: list[dict], out_dir: Path, pause: float = 0.3,
-                        voice: str | None = None, rate: str | None = None) -> tuple[Path, Path, list[dict]]:
+def synthesize_segments(segments: list[dict], out_dir: Path, pause: float = 0.3, voice: str | None = None,
+                        rate: str | None = None, pitch: str | None = None) -> tuple[Path, Path, list[dict]]:
     """구간마다 음성을 만들어 pause초씩 띄워 이어 붙인다.
     돌려주는 것: (voice.mp3, words.json, 구간 시간 목록 [{label, item, bg_query, start, end}])"""
     if len(segments) == 1:
-        mp3, js = synthesize(segments[0]["text"], out_dir, voice, rate)
+        mp3, js = synthesize(segments[0]["text"], out_dir, voice, rate, pitch)
         end = json.loads(js.read_text(encoding="utf-8"))[-1]["end"]
         return mp3, js, [dict(segments[0], start=0.0, end=end)]
 
@@ -84,7 +86,7 @@ def synthesize_segments(segments: list[dict], out_dir: Path, pause: float = 0.3,
     all_words, times, inputs, offset = [], [], [], 0.0
     for i, seg in enumerate(segments):
         part = out_dir / f"seg{i:02d}"
-        mp3, js = synthesize(seg["text"], part, voice, rate)
+        mp3, js = synthesize(seg["text"], part, voice, rate, pitch)
         dur = _duration(mp3)
         for w in json.loads(js.read_text(encoding="utf-8")):
             all_words.append({**w, "start": round(w["start"] + offset, 3), "end": round(w["end"] + offset, 3)})

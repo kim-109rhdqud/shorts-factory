@@ -1,0 +1,13 @@
+# 채널 하나 = 파일 하나. 파일 이름(japhak)이 채널 ID (폴더 이름으로 쓰임)
+name: 잡학 한입              # 가칭
+styles: [trivia]             # 이 채널이 만드는 스타일 (templates 아래 폴더)
+language: ko
+voice: ko-KR-InJoonNeural
+speech_rate: "+35%"
+voice_pitch: "+0Hz"
+daily_count: 2
+music_pools: [bright, mystery]   # AI가 이 안에서 고름
+subtitle:
+  highlight_color: "#FFE400"     # 노랑
+youtube_channel_id: ""
+banned_topics: []                # 공통 금지 주제(config.yaml)에 더해짐

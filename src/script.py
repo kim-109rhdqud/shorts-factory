@@ -46,19 +46,26 @@ def normalize(data: dict, st: dict) -> None:
         data["segments"] = [{"label": "", "text": data["script"]}] if data["script"] else []
 
 
-def _pools() -> tuple[list[str], list[str]]:
+def _pools(ch: dict | None = None) -> tuple[list[str], list[str]]:
+    """(배경 풀, 음악 풀) 이름 목록. 채널 설정에 music_pools가 있으면 그 안에서만."""
     bg = yaml.safe_load(config.path("assets/backgrounds/sources.yaml").read_text(encoding="utf-8"))["pools"]
-    music = yaml.safe_load(config.path("assets/music/sources.yaml").read_text(encoding="utf-8"))["pools"]
-    return list(bg), list(music)
+    music = list(yaml.safe_load(config.path("assets/music/sources.yaml").read_text(encoding="utf-8"))["pools"])
+    if ch and ch.get("music_pools"):
+        music = [m for m in music if m in ch["music_pools"]] or music
+    return list(bg), music
 
 
-def build_prompt(topic: str, style: str = "trivia") -> str:
+def _banned(ch: dict | None = None) -> list[str]:
+    return config.load()["script"]["banned_topics"] + list((ch or {}).get("banned_topics", []))
+
+
+def build_prompt(topic: str, style: str = "trivia", ch: dict | None = None) -> str:
     cfg, st = config.load()["script"], style_config(style)
-    bg_pools, music_pools = _pools()
+    bg_pools, music_pools = _pools(ch)
     template = (config.path(cfg["template_dir"]) / style / "prompt.md").read_text(encoding="utf-8")
     return template.format(
         topic=topic, min_chars=st["min_chars"], max_chars=st["max_chars"],
-        banned_topics=", ".join(cfg["banned_topics"]),
+        banned_topics=", ".join(_banned(ch)),
         background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools),
     )
 
@@ -77,10 +84,9 @@ def script_length(script: str) -> int:
     return len(re.sub(r"\s", "", script))
 
 
-def validate(data: dict, topic: str, st: dict) -> list[str]:
+def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[str]:
     """문제 목록 (비어 있으면 통과). data는 normalize 된다."""
-    cfg = config.load()["script"]
-    bg_pools, music_pools = _pools()
+    bg_pools, music_pools = _pools(ch)
     problems = [f"'{k}' 항목 없음" for k in required_keys(st) if k not in data]
     if problems:
         return problems
@@ -91,7 +97,7 @@ def validate(data: dict, topic: str, st: dict) -> list[str]:
     n = script_length(script)
     if not st["min_chars"] <= n <= st["max_chars"]:
         problems.append(f"대본 길이 {n}자 (공백 제외 {st['min_chars']}~{st['max_chars']}자여야 함)")
-    for word in cfg["banned_topics"]:
+    for word in _banned(ch):
         if word in topic or word in script:
             problems.append(f"금지 주제 단어 포함: {word}")
     if re.search(r"[()\[\]<>{}#*_~]|[\U0001F300-\U0001FAFF]", script):
@@ -121,10 +127,10 @@ def validate(data: dict, topic: str, st: dict) -> list[str]:
     return problems
 
 
-def review(data: dict) -> dict:
+def review(data: dict, ch: dict | None = None) -> dict:
     """두 번째 호출: 사실 오류·과장·상투적 표현을 고친다. 고친 결과가 검사에 떨어지면 원래 것을 쓴다."""
     cfg, st = config.load()["script"], style_config(data["style"])
-    bg_pools, music_pools = _pools()
+    bg_pools, music_pools = _pools(ch)
     draft = {k: data[k] for k in required_keys(st)}
     template = (config.path(cfg["template_dir"]) / "_review.md").read_text(encoding="utf-8")
     prompt = template.format(
@@ -135,7 +141,7 @@ def review(data: dict) -> dict:
     try:
         text, provider = llm.generate(prompt)
         fixed = extract_json(text)
-        problems = validate(fixed, data["topic"], st)
+        problems = validate(fixed, data["topic"], st, ch)
     except (ValueError, llm.LLMError) as e:
         problems = [str(e)]
     if problems:
@@ -145,20 +151,20 @@ def review(data: dict) -> dict:
     return {**data, **{k: fixed[k] for k in keep}, "reviewed_by": provider, "draft_script": data["script"]}
 
 
-def generate(topic: str, style: str = "trivia") -> dict:
+def generate(topic: str, style: str = "trivia", ch: dict | None = None) -> dict:
     """주제 → 검사를 통과한 대본 데이터. 결과에 사용한 프로그램(provider)도 기록."""
-    base, st = build_prompt(topic, style), style_config(style)
+    base, st = build_prompt(topic, style, ch), style_config(style)
     prompt, last_problems = base, []
     for attempt in range(1, config.load()["script"]["max_attempts"] + 1):
         text, provider = llm.generate(prompt)
         try:
             data = extract_json(text)
-            problems = validate(data, topic, st)
+            problems = validate(data, topic, st, ch)
         except ValueError as e:
             data, problems = None, [f"JSON 형식 오류: {e}"]
         if not problems:
             data.update(topic=topic, style=style, provider=provider, attempts=attempt)
-            return review(data) if config.load()["script"].get("review", True) else data
+            return review(data, ch) if config.load()["script"].get("review", True) else data
         log.warning("대본 검사 실패 (시도 %d): %s", attempt, "; ".join(problems))
         last_problems = problems
         prev = f"\n\n# 이전 답변\n{text[:3000]}" if data else ""
