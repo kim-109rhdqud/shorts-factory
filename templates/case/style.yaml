@@ -1,0 +1,24 @@
+# 판례 썰: 실제 판결문(저작권법 제7조, 보호받지 않는 저작물)을 당사자 시점 사연으로 재구성 → 마지막에 판결 공개
+name: 판례 썰
+segmented: true
+labels: ["판결"]          # 판결 구간에만 위쪽에 "판결" 표시
+min_chars: 300            # 공백 제외 (약 55~65초)
+max_chars: 380
+segment_pause: 0.6        # 사연 → 판결 넘어갈 때 잠깐 뜸
+extra_keys: [header, narrator]
+agy_model: gemini-3.1-pro-high
+voices:
+  female: ko-KR-SunHiNeural
+  male: ko-KR-InJoonNeural
+min_year: 2005
+keywords: [층간소음, 주차, 결혼식, 중고거래, 반려견, 임대차보증금, 택배, 환불, 이웃, 누수, 예식장, 헬스장, 학원비, 축의금, 위자료 이웃, 애완견, 공동주택 소음, 숙박 예약 취소]
+disclaimer: "※ 실제 판결({court} {case_no})을 바탕으로 재구성한 이야기입니다. 대사와 세부 묘사는 각색되었으며, 등장인물은 가명입니다."
+review_notes: |
+  - 이 스타일은 실제 판결을 재구성한 사연이다. 아래 원자료와 다른 사실(누가 소송했는지, 무슨 일이 있었는지, 청구 금액, 판결 결과·금액)이 있으면 반드시 원자료대로 고친다.
+  - 원자료에 없는 사건(범죄, 새로운 인물, 극적인 반전)을 지어내지 않았는지 본다. 감정·대사 각색은 괜찮다.
+  - 주소, 아파트 이름, 실명 같은 개인 정보가 없게 한다.
+  - fact_check에는 판결 결과와 금액, 사건번호를 넣는다.
+layout:
+  header: {font_size: 66, position_y: 0.13, color: "#FFFFFF", box_color: "#000000", box_alpha: 0.55, margin: 70}
+  label: {font_size: 150, position_y: 0.27, color: "#FFE400", outline: 10}
+  item: {font_size: 78, position_y: 0.355, color: "#FFFFFF", outline: 8}

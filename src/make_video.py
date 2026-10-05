@@ -6,6 +6,7 @@
     .venv/bin/python -m src.make_video --channel japhak --topic "문어의 심장"
     .venv/bin/python -m src.make_video --channel ranklab --topic "세상에서 가장 빠른 동물"
     .venv/bin/python -m src.make_video --channel ssul --topic "축의금 5만 원 낸 친구"
+    .venv/bin/python -m src.make_video --channel ssul --style case                      # 판례 썰 (판례 자동 선택)
     .venv/bin/python -m src.make_video --topic "번개의 온도" --style trivia              # 채널 설정 없이 (test)
     .venv/bin/python -m src.make_video --script samples/sample_01.txt                  # 직접 쓴 대본
 """
@@ -16,7 +17,7 @@ import random
 import shutil
 from pathlib import Path
 
-from src import background, channels, config, export, music, render, script, subtitle, tts
+from src import background, cases, channels, config, export, music, render, script, subtitle, tts
 
 
 def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str | None = None,
@@ -59,25 +60,38 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
     return final
 
 
-def make_from_topic(topic: str, channel: str, style: str | None = None, **kwargs) -> Path:
+def make_from_topic(topic: str | None, channel: str, style: str | None = None, **kwargs) -> Path:
     """주제 → AI 대본 → 완성 영상. 스타일은 채널 설정의 첫 번째 스타일이 기본.
+    판례 썰(case)은 주제 없이 판례를 자동으로 골라 쓴다.
     배경·음악 풀은 AI가 고른 것을 쓰되, 직접 지정하면 그걸 우선."""
     ch = channels.load(channel)
     style = style or ch["styles"][0]
-    print(f"0/5 대본 쓰는 중... (채널: {ch['name']}, 주제: {topic}, 스타일: {style})")
-    data = script.generate(topic, style, ch)
+    source, case = None, None
+    if style == "case":
+        print("0/5 판례 고르는 중...")
+        case = cases.pick()
+        topic = topic or f"{case['name']}: {(case['summary'] or case['gist'])[:200]}"
+        source = {"text": cases.source_text(case), "info": {"court": case["court"], "case_no": case["case_no"]}}
+        print(f"    판례: {case['court']} {case['case_no']} ({case['keyword']})")
+    if not topic:
+        raise ValueError("주제(--topic)가 필요합니다.")
+    print(f"0/5 대본 쓰는 중... (채널: {ch['name']}, 주제: {topic[:60]}, 스타일: {style})")
+    data = script.generate(topic, style, ch, source)
     print(f"    제목: {data['title']} ({data['provider']}, {script.script_length(data['script'])}자)")
     kwargs["bg_pool"] = kwargs.get("bg_pool") or data["background_pool"]
     kwargs["music_pool"] = kwargs.get("music_pool") or data["music_pool"]
-    return make(data["segments"], channel, style, info=script.upload_text(data),
-                narrator=data.get("narrator"), header=data.get("header"), **kwargs)
+    final = make(data["segments"], channel, style, info=script.upload_text(data),
+                 narrator=data.get("narrator"), header=data.get("header"), **kwargs)
+    if case:
+        cases.mark_used(case["id"])
+    return final
 
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     ap = argparse.ArgumentParser(description="주제 또는 대본 txt → 완성 영상")
-    src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--topic", help="주제 한 줄 (AI가 대본 작성)")
+    src = ap.add_mutually_exclusive_group()
+    src.add_argument("--topic", help="주제 한 줄 (AI가 대본 작성). 판례 썰(--style case)은 생략하면 자동 선택")
     src.add_argument("--script", type=Path, help="직접 쓴 대본 txt")
     ap.add_argument("--channel", default="test", help=f"채널 ID (channels 폴더: {', '.join(channels.list_ids())})")
     ap.add_argument("--style", help="대본 스타일 (없으면 채널 설정, 그것도 없으면 trivia)")
@@ -89,7 +103,7 @@ def main():
     args = ap.parse_args()
     opts = dict(bg_pool=args.bg_pool, music_pool=args.music_pool, upload=not args.no_upload,
                 keep_work=args.keep_work, seed=args.seed)
-    if args.topic:
+    if args.script is None:
         make_from_topic(args.topic, args.channel, args.style, **opts)
     else:
         make([{"label": "", "text": args.script.read_text(encoding="utf-8")}], args.channel,

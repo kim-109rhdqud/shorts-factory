@@ -100,11 +100,12 @@ AGY_PREFIX = ("[지시] 어떤 도구도 쓰지 말고 명령도 실행하지 �
               "글자 수 같은 건 머릿속으로 어림해. 아래 요청에 대한 최종 답변 텍스트만 바로 출력해.\n\n")
 
 
-def _call_agy(prompt: str) -> str:
+def _call_agy(prompt: str, model: str | None = None) -> str:
     cmd = [config.tool("agy"), "-p", AGY_PREFIX + prompt, "--output-format", "json",
            "--print-timeout", f"{_cfg()['timeout_sec'] - 10}s"]
-    if _cfg().get("agy_model"):
-        cmd += ["--model", _cfg()["agy_model"]]
+    model = model or _cfg().get("agy_model")
+    if model:
+        cmd += ["--model", model]
     out = json.loads(_run(cmd, "agy").stdout)
     if out.get("status") != "SUCCESS" or not out.get("response"):
         denied = [a.get("display_name") for a in out.get("denied_actions", [])]
@@ -112,7 +113,7 @@ def _call_agy(prompt: str) -> str:
     return out["response"]
 
 
-def _call_claude(prompt: str) -> str:
+def _call_claude(prompt: str, model: str | None = None) -> str:
     cmd = [config.tool("claude"), "-p", prompt, "--output-format", "json", "--tools", "",
            "--no-session-persistence"]
     if _cfg().get("claude_model"):
@@ -126,8 +127,9 @@ def _call_claude(prompt: str) -> str:
 CALLERS = {"agy": _call_agy, "claude": _call_claude}
 
 
-def generate(prompt: str) -> tuple[str, str]:
-    """프롬프트 → (답변 텍스트, 사용한 프로그램). 순서대로 시도하고 전부 실패하면 오류."""
+def generate(prompt: str, agy_model: str | None = None) -> tuple[str, str]:
+    """프롬프트 → (답변 텍스트, 사용한 프로그램). 순서대로 시도하고 전부 실패하면 오류.
+    agy_model: 이번 호출만 다른 Antigravity 모델 사용 (예: 창작은 Pro)"""
     cfg = _cfg()
     errors, auth_errors = [], []
     for provider in cfg["providers"]:
@@ -140,7 +142,7 @@ def generate(prompt: str) -> tuple[str, str]:
             try:
                 if os.environ.get("SHORTS_LLM_FORCE_FAIL") == provider:  # 전환 테스트용
                     raise LLMError(f"{provider}: 테스트용 강제 실패")
-                text = CALLERS[provider](prompt)
+                text = CALLERS[provider](prompt, agy_model if provider == "agy" else None)
                 log.info("%s 응답 성공 (시도 %d)", provider, attempt)
                 return text, provider
             except AuthExpired as e:

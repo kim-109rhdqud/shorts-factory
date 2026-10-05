@@ -1,5 +1,5 @@
 name: 오늘의 썰              # 가칭
-styles: [story]
+styles: [story, case]          # AI 창작 썰 + 실제 판결 썰 (하루 1개씩)
 language: ko
 voices:                          # 화자 성별 → 목소리 (썰 스타일)
   female: ko-KR-SunHiNeural

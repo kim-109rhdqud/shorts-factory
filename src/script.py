@@ -59,14 +59,14 @@ def _banned(ch: dict | None = None) -> list[str]:
     return config.load()["script"]["banned_topics"] + list((ch or {}).get("banned_topics", []))
 
 
-def build_prompt(topic: str, style: str = "trivia", ch: dict | None = None) -> str:
+def build_prompt(topic: str, style: str = "trivia", ch: dict | None = None, extra: dict | None = None) -> str:
     cfg, st = config.load()["script"], style_config(style)
     bg_pools, music_pools = _pools(ch)
     template = (config.path(cfg["template_dir"]) / style / "prompt.md").read_text(encoding="utf-8")
     return template.format(
         topic=topic, min_chars=st["min_chars"], max_chars=st["max_chars"],
         banned_topics=", ".join(_banned(ch)),
-        background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools),
+        background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools), **(extra or {}),
     )
 
 
@@ -138,8 +138,10 @@ def review(data: dict, ch: dict | None = None) -> dict:
         max_chars=st["max_chars"], background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools),
         keys=", ".join(required_keys(st)), style_notes=st.get("review_notes", "- (없음)"),
     )
+    if data.get("source_text"):  # 판례 등 원자료가 있으면 사실 기준으로 같이 준다
+        prompt += f"\n\n# 원자료 (사실은 반드시 이것과 일치해야 함)\n{data['source_text'][:6000]}"
     try:
-        text, provider = llm.generate(prompt)
+        text, provider = llm.generate(prompt, st.get("agy_model"))
         fixed = extract_json(text)
         problems = validate(fixed, data["topic"], st, ch)
     except (ValueError, llm.LLMError) as e:
@@ -151,12 +153,14 @@ def review(data: dict, ch: dict | None = None) -> dict:
     return {**data, **{k: fixed[k] for k in keep}, "reviewed_by": provider, "draft_script": data["script"]}
 
 
-def generate(topic: str, style: str = "trivia", ch: dict | None = None) -> dict:
-    """주제 → 검사를 통과한 대본 데이터. 결과에 사용한 프로그램(provider)도 기록."""
-    base, st = build_prompt(topic, style, ch), style_config(style)
+def generate(topic: str, style: str = "trivia", ch: dict | None = None, source: dict | None = None) -> dict:
+    """주제 → 검사를 통과한 대본 데이터. 결과에 사용한 프로그램(provider)도 기록.
+    source: 원자료 (판례 썰의 판결문 등). {"text": 원문, "info": 설명란 안내 문구에 넣을 값들}"""
+    extra = {"source_text": source["text"]} if source else None
+    base, st = build_prompt(topic, style, ch, extra), style_config(style)
     prompt, last_problems = base, []
     for attempt in range(1, config.load()["script"]["max_attempts"] + 1):
-        text, provider = llm.generate(prompt)
+        text, provider = llm.generate(prompt, st.get("agy_model"))
         try:
             data = extract_json(text)
             problems = validate(data, topic, st, ch)
@@ -164,6 +168,8 @@ def generate(topic: str, style: str = "trivia", ch: dict | None = None) -> dict:
             data, problems = None, [f"JSON 형식 오류: {e}"]
         if not problems:
             data.update(topic=topic, style=style, provider=provider, attempts=attempt)
+            if source:
+                data.update(source_text=source["text"], source_info=source.get("info", {}))
             return review(data, ch) if config.load()["script"].get("review", True) else data
         log.warning("대본 검사 실패 (시도 %d): %s", attempt, "; ".join(problems))
         last_problems = problems
@@ -184,7 +190,7 @@ def upload_text(data: dict) -> str:
     desc = data["description"]
     disclaimer = style_config(data["style"]).get("disclaimer")
     if disclaimer:
-        desc += "\n" + disclaimer
+        desc += "\n" + disclaimer.format(**data.get("source_info", {}))
     screen = f"[화면 위 제목]\n{data['header']}\n\n" if data.get("header") else ""
     return (f"[제목]\n{data['title']}\n\n{screen}[설명]\n{desc}\n\n{' '.join(data['hashtags'])}\n\n"
             f"[업로드 전 사실 확인]\n{facts}\n\n[대본]\n{body}\n")
