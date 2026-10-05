@@ -203,7 +203,7 @@ shorts-factory/
 
 ## 현재 진행 상황
 
-- 현재 단계: 2 완료 → 다음: 3단계 대본 자동화
+- 현재 단계: 3 완료 → 다음: 4단계 스타일 템플릿
 - 메모:
   - 서버: AWS Lightsail 서울, 고정 IP 15.165.80.188, 2코어/2GB + 스왑 2GB (권장 사양보다 작음, 영상 합성 때 확인 필요)
   - code-server: https://15-165-80-188.sslip.io (Caddy 자동 HTTPS → 127.0.0.1:8080)
@@ -224,4 +224,12 @@ shorts-factory/
   - 2단계: 배경 = Pixabay 무료 세로 영상 (`assets/backgrounds/<풀>`, 키는 .env `PIXABAY_API_KEY`, Pexels는 키 발급 중단으로 사용 못 함), 음악 = Kevin MacLeod CC BY 4.0 (`assets/music/<풀>`, 출처 문구 `NNN_upload.txt`에 자동 삽입)
     - 소스 받기: `.venv/bin/python -m src.fetch_assets music|backgrounds`
     - 영상 하나 약 1분 40초, 최대 메모리 약 410MB
-    - 속도 +35%면 같은 대본이 약 35초 → 40초 영상이면 대본을 더 길게(약 300~330자)
+    - 속도 +35%면 초당 약 5.9자 (공백 제외) → 40초 영상 = 대본 약 210~260자
+  - 3단계: `.venv/bin/python -m src.make_video --topic "주제"` → AI 대본 → 영상. `--script 파일.txt`로 직접 쓴 대본도 가능
+    - `src/llm.py`: agy → claude 자동 전환, 하루 상한(agy 40·claude 10), 재시도, 로그인 만료 감지(AuthExpired), 사용량 `data/llm_usage.json`
+    - LLM은 프로젝트 밖 빈 폴더(`~/.local/share/shorts-factory/llm_sandbox`)에서 실행 (CLAUDE.md 등 읽지 않게)
+    - agy는 에이전트라 글자 수를 세려고 명령을 실행하려다 막히면 빈 답을 냄 → 프롬프트 앞에 "도구 사용 금지" 지시 (`AGY_PREFIX`)
+    - agy `--json-schema`는 엉뚱한 값을 채워서 안 씀 → "JSON만 출력" 지시 후 직접 꺼내서 검사
+    - 대본 = 생성(templates/<스타일>/prompt.md) + 검토(templates/_review.md: 사실·과장·상투어 수정, 말투 유지). 영상 하나에 LLM 2회
+    - 업로드 정보 txt: 제목, 설명, 해시태그, 업로드 전 사실 확인 목록, 대본, 음악 출처
+    - 강제 실패 테스트: `SHORTS_LLM_FORCE_FAIL=agy`
