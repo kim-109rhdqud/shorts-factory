@@ -1,9 +1,12 @@
 """주제 → 대본·제목·설명·해시태그 (JSON) 생성 + 검사.
 
-검사: JSON 형식, 필수 항목, 대본 길이, 금지 주제, 배경·음악 풀 이름. 통과 못 하면 이유를 붙여 다시 요청.
+스타일마다 templates/<스타일>/ 에 prompt.md(대본 지침)와 style.yaml(길이·구간·화면 설정)이 있다.
+대본은 항상 "구간(segments)" 목록으로 정리된다. 잡지식처럼 한 덩어리인 스타일은 구간이 하나.
+검사: JSON 형식, 필수 항목, 대본 길이, 금지 주제, 배경·음악 풀 이름, (랭킹) 순위 순서. 통과 못 하면 이유를 붙여 다시 요청.
 
 단독 실행:
     .venv/bin/python -m src.script "문어의 심장" --out output/_work/script_test.json
+    .venv/bin/python -m src.script "세상에서 가장 빠른 동물" --style ranking
 """
 import argparse
 import json
@@ -17,7 +20,30 @@ from src import config, llm
 
 log = logging.getLogger("script")
 
-REQUIRED = ("title", "script", "description", "hashtags", "background_pool", "music_pool", "fact_check")
+BASE_KEYS = ("title", "description", "hashtags", "background_pool", "music_pool", "fact_check")
+
+
+def style_config(style: str) -> dict:
+    tdir = config.path(config.load()["script"]["template_dir"]) / style
+    return yaml.safe_load((tdir / "style.yaml").read_text(encoding="utf-8"))
+
+
+def required_keys(st: dict) -> tuple[str, ...]:
+    return BASE_KEYS + (("segments",) if st.get("segmented") else ("script",)) + tuple(st.get("extra_keys", []))
+
+
+def normalize(data: dict, st: dict) -> None:
+    """스타일과 상관없이 data["segments"]와 data["script"](전체 대본 한 줄)를 갖추게 한다."""
+    if st.get("segmented"):
+        segs = [x for x in data.get("segments", []) if isinstance(x, dict) and str(x.get("text", "")).strip()]
+        for x in segs:
+            x["text"] = x["text"].strip()
+            x.setdefault("label", "")
+        data["segments"] = segs
+        data["script"] = " ".join(x["text"] for x in segs)
+    else:
+        data["script"] = str(data.get("script", "")).strip()
+        data["segments"] = [{"label": "", "text": data["script"]}] if data["script"] else []
 
 
 def _pools() -> tuple[list[str], list[str]]:
@@ -27,11 +53,11 @@ def _pools() -> tuple[list[str], list[str]]:
 
 
 def build_prompt(topic: str, style: str = "trivia") -> str:
-    cfg = config.load()["script"]
+    cfg, st = config.load()["script"], style_config(style)
     bg_pools, music_pools = _pools()
     template = (config.path(cfg["template_dir"]) / style / "prompt.md").read_text(encoding="utf-8")
     return template.format(
-        topic=topic, min_chars=cfg["min_chars"], max_chars=cfg["max_chars"],
+        topic=topic, min_chars=st["min_chars"], max_chars=st["max_chars"],
         banned_topics=", ".join(cfg["banned_topics"]),
         background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools),
     )
@@ -51,19 +77,20 @@ def script_length(script: str) -> int:
     return len(re.sub(r"\s", "", script))
 
 
-def validate(data: dict, topic: str) -> list[str]:
-    """문제 목록 (비어 있으면 통과)."""
+def validate(data: dict, topic: str, st: dict) -> list[str]:
+    """문제 목록 (비어 있으면 통과). data는 normalize 된다."""
     cfg = config.load()["script"]
     bg_pools, music_pools = _pools()
-    problems = [f"'{k}' 항목 없음" for k in REQUIRED if k not in data]
+    problems = [f"'{k}' 항목 없음" for k in required_keys(st) if k not in data]
     if problems:
         return problems
-    script = data["script"].strip()
+    normalize(data, st)
+    script = data["script"]
     if not script:
         return ["금지 주제로 판단되어 대본이 비어 있음"]
     n = script_length(script)
-    if not cfg["min_chars"] <= n <= cfg["max_chars"]:
-        problems.append(f"대본 길이 {n}자 (공백 제외 {cfg['min_chars']}~{cfg['max_chars']}자여야 함)")
+    if not st["min_chars"] <= n <= st["max_chars"]:
+        problems.append(f"대본 길이 {n}자 (공백 제외 {st['min_chars']}~{st['max_chars']}자여야 함)")
     for word in cfg["banned_topics"]:
         if word in topic or word in script:
             problems.append(f"금지 주제 단어 포함: {word}")
@@ -75,6 +102,16 @@ def validate(data: dict, topic: str) -> list[str]:
         problems.append(f"세는 말 앞 작은 수를 숫자로 씀 ({examples}) → '세 개'처럼 한글로")
     if script.startswith(("안녕하세요", "오늘은", "여러분")):
         problems.append("첫 문장이 인사·소개로 시작함 (바로 훅으로 시작해야 함)")
+    if st.get("labels"):
+        labeled = [x for x in data["segments"] if x.get("label")]
+        if [x["label"] for x in labeled] != st["labels"]:
+            problems.append(f"순위 구간은 {st['labels']} 순서여야 함")
+        if any(not str(x.get("item", "")).strip() for x in labeled):
+            problems.append("순위 구간마다 item(항목 이름)이 있어야 함")
+    if st.get("voices") and data.get("narrator") not in st["voices"]:
+        problems.append(f"narrator는 {list(st['voices'])} 중 하나여야 함")
+    if "header" in st.get("extra_keys", []) and not 4 <= len(str(data.get("header", ""))) <= 32:
+        problems.append("header(화면 위 사연 제목)는 4~32자여야 함")
     if data["background_pool"] not in bg_pools:
         problems.append(f"background_pool은 {bg_pools} 중 하나여야 함")
     if data["music_pool"] not in music_pools:
@@ -86,40 +123,40 @@ def validate(data: dict, topic: str) -> list[str]:
 
 def review(data: dict) -> dict:
     """두 번째 호출: 사실 오류·과장·상투적 표현을 고친다. 고친 결과가 검사에 떨어지면 원래 것을 쓴다."""
-    cfg = config.load()["script"]
+    cfg, st = config.load()["script"], style_config(data["style"])
     bg_pools, music_pools = _pools()
-    draft = {k: data[k] for k in REQUIRED}
+    draft = {k: data[k] for k in required_keys(st)}
     template = (config.path(cfg["template_dir"]) / "_review.md").read_text(encoding="utf-8")
     prompt = template.format(
-        draft=json.dumps(draft, ensure_ascii=False, indent=1), min_chars=cfg["min_chars"],
-        max_chars=cfg["max_chars"], background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools),
+        draft=json.dumps(draft, ensure_ascii=False, indent=1), min_chars=st["min_chars"],
+        max_chars=st["max_chars"], background_pools=", ".join(bg_pools), music_pools=", ".join(music_pools),
+        keys=", ".join(required_keys(st)), style_notes=st.get("review_notes", "- (없음)"),
     )
     try:
         text, provider = llm.generate(prompt)
         fixed = extract_json(text)
-        problems = validate(fixed, data["topic"])
+        problems = validate(fixed, data["topic"], st)
     except (ValueError, llm.LLMError) as e:
         problems = [str(e)]
     if problems:
         log.warning("검토 결과 사용 안 함 (원래 대본 유지): %s", "; ".join(problems))
         return data
-    fixed["script"] = fixed["script"].strip()
-    return {**data, **{k: fixed[k] for k in REQUIRED}, "reviewed_by": provider, "draft_script": data["script"]}
+    keep = required_keys(st) + ("script", "segments")
+    return {**data, **{k: fixed[k] for k in keep}, "reviewed_by": provider, "draft_script": data["script"]}
 
 
 def generate(topic: str, style: str = "trivia") -> dict:
     """주제 → 검사를 통과한 대본 데이터. 결과에 사용한 프로그램(provider)도 기록."""
-    base = build_prompt(topic, style)
+    base, st = build_prompt(topic, style), style_config(style)
     prompt, last_problems = base, []
     for attempt in range(1, config.load()["script"]["max_attempts"] + 1):
         text, provider = llm.generate(prompt)
         try:
             data = extract_json(text)
-            problems = validate(data, topic)
+            problems = validate(data, topic, st)
         except ValueError as e:
             data, problems = None, [f"JSON 형식 오류: {e}"]
         if not problems:
-            data["script"] = data["script"].strip()
             data.update(topic=topic, style=style, provider=provider, attempts=attempt)
             return review(data) if config.load()["script"].get("review", True) else data
         log.warning("대본 검사 실패 (시도 %d): %s", attempt, "; ".join(problems))
@@ -133,8 +170,18 @@ def generate(topic: str, style: str = "trivia") -> dict:
 def upload_text(data: dict) -> str:
     """업로드 정보 txt 내용 (제목, 설명, 해시태그, 사실 확인 메모)."""
     facts = "\n".join(f"- [ ] {f}" for f in data["fact_check"])
-    return (f"[제목]\n{data['title']}\n\n[설명]\n{data['description']}\n\n{' '.join(data['hashtags'])}\n\n"
-            f"[업로드 전 사실 확인]\n{facts}\n\n[대본]\n{data['script']}\n")
+    if data["segments"] and any(x.get("label") for x in data["segments"]):
+        body = "\n".join(f"[{x['label']} {x.get('item', '')}] {x['text']}" if x.get("label") else x["text"]
+                         for x in data["segments"])
+    else:
+        body = data["script"]
+    desc = data["description"]
+    disclaimer = style_config(data["style"]).get("disclaimer")
+    if disclaimer:
+        desc += "\n" + disclaimer
+    screen = f"[화면 위 제목]\n{data['header']}\n\n" if data.get("header") else ""
+    return (f"[제목]\n{data['title']}\n\n{screen}[설명]\n{desc}\n\n{' '.join(data['hashtags'])}\n\n"
+            f"[업로드 전 사실 확인]\n{facts}\n\n[대본]\n{body}\n")
 
 
 def main():

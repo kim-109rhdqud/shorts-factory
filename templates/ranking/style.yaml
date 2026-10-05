@@ -1,0 +1,11 @@
+# 랭킹 TOP 5: 도입 → 5위 ~ 1위 → (마무리). 위쪽에 순위·항목 이름, 항목마다 배경 전환
+name: 랭킹 TOP 5
+segmented: true
+labels: ["5위", "4위", "3위", "2위", "1위"]
+min_chars: 260        # 공백 제외 (약 45~56초)
+max_chars: 330
+segment_pause: 0.3    # 구간 사이 쉬는 시간 (초)
+background: per_segment   # 구간마다 배경 바꿈. bg_query로 항목에 맞는 영상을 검색, 없으면 풀에서
+layout:
+  label: {font_size: 190, position_y: 0.16, color: "#FFE400", outline: 10}
+  item: {font_size: 96, position_y: 0.255, color: "#FFFFFF", outline: 8}

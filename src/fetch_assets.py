@@ -100,6 +100,71 @@ def fetch_backgrounds(only_pool: str | None = None) -> None:
         print(f"{pool}: {len(meta)}개 준비 완료")
 
 
+# 검색어에서 "무엇"이 아닌 "어떻게"에 해당하는 말 (태그 일치 판단에서 뺌)
+GENERIC_WORDS = {"running", "run", "flying", "fly", "swimming", "swim", "diving", "dive", "fast", "speed", "slow",
+                 "motion", "close", "up", "closeup", "wild", "animal", "animals", "video", "the", "a", "an", "in",
+                 "on", "of", "and", "with", "at", "view", "aerial", "shot", "footage", "beautiful", "big", "small"}
+
+
+def _subject_words(query: str) -> list[str]:
+    import re
+    return [w for w in re.findall(r"[a-z]+", query.lower()) if w not in GENERIC_WORDS]
+
+
+def _tag_score(hit: dict, required: list[str]) -> float:
+    """required 단어가 태그에 전부 있으면 점수 > 0 (세로·실사 영상 가산). 하나라도 없으면 0."""
+    import re
+    tag_words = set(re.findall(r"[a-z]+", hit["tags"].lower()))
+    if not all(w in tag_words for w in required):
+        return 0.0
+    r = _pick_rendition(hit)
+    score = 1.0
+    score += 0.5 if r["height"] > r["width"] else 0      # 세로 영상이면 조금 더
+    score -= 0.6 if "generated ai" in hit["tags"] else 0  # AI 생성 영상은 덜
+    return score
+
+
+def search_clip(query: str, rng=None) -> Path | None:
+    """검색어에 맞는 배경 영상 하나 (assets/backgrounds/_search/<검색어>/ 에 저장해 두고 재사용).
+    태그에 핵심 단어가 있는 영상만 고른다 (세로 우선). 못 찾으면 None → 풀 영상으로 대신."""
+    import random
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", query.lower()).strip("-")[:40]
+    subject = _subject_words(query)
+    if not slug or not subject:
+        return None
+    folder = BG_DIR / "_search" / slug
+    cached = sorted(folder.glob("*.mp4"))
+    if cached:
+        return (rng or random).choice(cached)
+
+    # 1) 핵심 단어가 태그에 전부 있는 영상 (전체 검색어 → 핵심 단어만으로 검색)
+    # 2) 없으면 마지막 명사만 (영어는 끝 단어가 핵심: swift "bird", peregrine "falcon")
+    attempts = [(query, subject), (" ".join(subject), subject), (subject[-1], subject[-1:])]
+    best = None
+    for q, required in dict.fromkeys((q, tuple(r)) for q, r in attempts):
+        try:
+            hits = [h for h in _pixabay_search(q) if 4 <= h["duration"] <= 60]
+        except Exception as e:  # 검색 실패는 치명적이지 않음 → 풀 영상으로 대신
+            print(f"검색 실패 ({q}): {e}")
+            return None
+        scored = sorted(((_tag_score(h, list(required)), h) for h in hits), key=lambda x: -x[0])
+        if scored and scored[0][0] > 0:
+            best = scored[0][1]
+            break
+    if best is None:
+        return None
+    r = _pick_rendition(best)
+    folder.mkdir(parents=True, exist_ok=True)
+    dest = folder / f"pixabay_{best['id']}.mp4"
+    _download(r["url"], dest)
+    (folder / "_meta.json").write_text(json.dumps({"query": query, "page": best["pageURL"], "user": best["user"],
+                                                   "tags": best["tags"], "license": "Pixabay Content License"},
+                                                  ensure_ascii=False))
+    return dest
+
+
 def main():
     ap = argparse.ArgumentParser(description="무료 소스 내려받기")
     ap.add_argument("kind", choices=["music", "backgrounds"])

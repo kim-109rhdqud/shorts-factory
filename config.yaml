@@ -67,8 +67,6 @@ llm:
 
 script:
   template_dir: templates
-  min_chars: 210             # 대본 길이 (공백 제외). +35% 속도에서 초당 약 5.9자 → 약 36~44초
-  max_chars: 260
   max_attempts: 3            # 검사 통과 못 하면 다시 요청하는 횟수
   review: true               # 두 번째 호출로 사실 확인·상투 표현 다듬기
   banned_topics: [정치, 종교, 의료정보, 투자 권유, 성인, 혐오, 실존 인물 비방]

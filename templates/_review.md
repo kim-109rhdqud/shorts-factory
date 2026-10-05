@@ -21,9 +21,15 @@
 - 세는 말 앞 작은 수는 한글로 ("세 개", "두 마리"), 괄호·이모지·특수기호 금지
 - background_pool은 {background_pools} 중 하나, music_pool은 {music_pools} 중 하나
 
+- segments가 있으면 구간 수, label 순서, item, bg_query 구조를 그대로 유지한다 (내용만 고친다).
+  순위가 사실과 다르면 순위 자체를 바로잡아도 된다 (label 순서는 그대로).
+
+# 스타일별 검토
+{style_notes}
+
 # 검토할 JSON
 {draft}
 
 # 출력
-고친 JSON 하나만 출력한다 (같은 항목: title, script, description, hashtags, background_pool, music_pool, fact_check).
+고친 JSON 하나만 출력한다 (같은 항목: {keys}).
 설명, 마크다운, 코드블록 없이 JSON만.

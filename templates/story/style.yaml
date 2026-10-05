@@ -1,0 +1,16 @@
+# 썰: AI가 새로 창작한 판 스타일 1인칭 사연. 위쪽에 사연 제목 고정, 화자 성별에 맞는 목소리
+name: 썰
+segmented: false
+min_chars: 300        # 공백 제외 (약 50~60초)
+max_chars: 360
+extra_keys: [header, narrator]
+voices:               # narrator 값 → 목소리
+  female: ko-KR-SunHiNeural
+  male: ko-KR-InJoonNeural
+disclaimer: "※ 이 영상은 재구성된 가상의 이야기입니다. 실제 인물·단체와 관계없습니다."
+review_notes: |
+  - 이 스타일은 창작 사연이다. 사실 확인 대신: 실존 인물·실제 회사·브랜드·지역을 특정하는 내용, 혐오·차별·과도한 욕설, 금지 주제가 있으면 고친다.
+  - 이야기의 개연성(앞뒤가 맞는지)과 마지막 반전이 살아 있는지 본다.
+  - fact_check는 "업로드 전 확인할 점"(민감할 수 있는 표현 등)으로 쓴다. 없으면 빈 목록.
+layout:
+  header: {font_size: 66, position_y: 0.13, color: "#FFFFFF", box_color: "#000000", box_alpha: 0.55, margin: 70}

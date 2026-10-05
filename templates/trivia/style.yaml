@@ -1,0 +1,5 @@
+# 잡지식: 대본 한 덩어리, 가운데 자막
+name: 잡지식
+segmented: false
+min_chars: 210        # 공백 제외 (+35% 속도에서 약 36~44초)
+max_chars: 260

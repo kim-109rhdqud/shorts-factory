@@ -105,12 +105,50 @@ def _chunk_events(c: dict, sub: dict) -> list[str]:
     return events
 
 
-def build_ass(chunks: list[dict]) -> str:
+def _overlay_style(name: str, o: dict, font: str, vid: dict) -> str:
+    """위쪽 고정 표시(순위·항목 이름 등)용 스타일. position_y 지점에 글자 가운데가 오게."""
+    margin_v = int(vid["height"] * o["position_y"] - o["font_size"] / 2)
+    return (f"Style: {name},{font},{o['font_size']},{_color(o.get('color', '#FFFFFF'))[:-1].replace('&H', '&H00')},"
+            f"&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{o.get('outline', 8)},4,8,40,40,{margin_v},1")
+
+
+def _header_style(o: dict, font: str, vid: dict) -> str:
+    """위쪽 사연 제목: 반투명 상자 안에 흰 글씨 (BorderStyle 3 = 글자 뒤 상자). 길면 자동 줄바꿈."""
+    alpha = f"{round((1 - o.get('box_alpha', 0.55)) * 255):02X}"
+    box = _color(o.get("box_color", "#000000"))[2:-1]
+    margin_v = int(vid["height"] * o["position_y"] - o["font_size"] / 2)
+    m = o.get("margin", 70)
+    return (f"Style: Header,{font},{o['font_size']},{_color(o.get('color', '#FFFFFF'))[:-1].replace('&H', '&H00')},"
+            f"&H00FFFFFF,&H{alpha}{box},&H{alpha}{box},0,0,0,0,100,100,0,0,3,18,0,8,{m},{m},{margin_v},1")
+
+
+def overlay_events(segments: list[dict]) -> list[str]:
+    """구간마다 순위(label)와 항목 이름(item)을 위쪽에 표시. 등장할 때 톡 튀어나옴."""
+    events = []
+    for seg in segments:
+        end = seg.get("show_until", seg["end"])
+        pop = "{\\fscx60\\fscy60\\t(0,120,\\fscx100\\fscy100)}"
+        if seg.get("label"):
+            events.append(f"Dialogue: 1,{_ass_time(seg['start'])},{_ass_time(end)},Label,,0,0,0,,{pop}{seg['label']}")
+        if seg.get("item"):
+            events.append(f"Dialogue: 1,{_ass_time(seg['start'])},{_ass_time(end)},Item,,0,0,0,,{pop}{seg['item']}")
+    return events
+
+
+def build_ass(chunks: list[dict], segments: list[dict] | None = None, layout: dict | None = None,
+              header: str | None = None) -> str:
     cfg = config.load()
     sub, vid = cfg["subtitle"], cfg["video"]
+    layout = layout or {}
     # 화면 위에서 position_y 지점에 자막 가운데가 오도록 (쇼츠 하단 UI와 안 겹치게 가운데보다 약간 아래)
     margin_v = int(vid["height"] * (1 - sub["position_y"]) - sub["font_size"] / 2)
-    header = f"""[Script Info]
+    extra_styles = "".join(
+        _overlay_style(name, layout[key], sub["font_name"], vid) + "\n"
+        for name, key in (("Label", "label"), ("Item", "item")) if key in layout
+    )
+    if header and "header" in layout:
+        extra_styles += _header_style(layout["header"], sub["font_name"], vid) + "\n"
+    head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {vid['width']}
 PlayResY: {vid['height']}
@@ -120,20 +158,29 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Main,{sub['font_name']},{sub['font_size']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{sub['outline']},4,2,60,60,{margin_v},1
-
+{extra_styles}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     lines = [e for c in chunks for e in _chunk_events(c, sub)]
-    return header + "\n".join(lines) + "\n"
+    if segments and layout:
+        lines += overlay_events(segments)
+    if header and "header" in layout:  # 사연 제목은 처음부터 끝까지
+        lines.append(f"Dialogue: 2,{_ass_time(0)},{_ass_time(chunks[-1]['end'])},Header,,0,0,0,,{header}")
+    return head + "\n".join(lines) + "\n"
 
 
-def make_subtitle(words_json: Path, ass_path: Path) -> Path:
+def make_subtitle(words_json: Path, ass_path: Path, segments: list[dict] | None = None,
+                  layout: dict | None = None, header: str | None = None) -> Path:
+    """segments와 layout을 주면 위쪽 고정 표시(순위 등)도 함께 그린다."""
     sub = config.load()["subtitle"]
     words = json.loads(words_json.read_text(encoding="utf-8"))
     chunks = chunk_words(words, sub["max_chars"], sub["max_words"], sub["pause_split"])
+    if segments:  # 순위 표시는 다음 구간이 시작할 때까지 유지 (구간 사이 쉬는 동안 깜빡이지 않게)
+        segments = [dict(s, show_until=n["start"]) for s, n in zip(segments, segments[1:])] + [
+            dict(segments[-1], show_until=chunks[-1]["end"])]
     ass_path.parent.mkdir(parents=True, exist_ok=True)
-    ass_path.write_text(build_ass(chunks), encoding="utf-8")
+    ass_path.write_text(build_ass(chunks, segments, layout, header), encoding="utf-8")
     return ass_path
 
 

@@ -12,3 +12,4 @@ __pycache__/
 assets/music/**/*.mp3
 assets/backgrounds/**/*.mp4
 assets/backgrounds/*/_meta.json
+assets/backgrounds/_search/

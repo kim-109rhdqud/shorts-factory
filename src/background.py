@@ -9,6 +9,7 @@
 """
 import argparse
 import random
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -65,8 +66,59 @@ def plan_segments(clips: list[Path], duration: float, rng: random.Random) -> lis
     return segments
 
 
-def make_background(duration: float, out_path: Path, pool: str | None = None, seed: int | None = None) -> Path:
-    """배경 mp4를 만든다. 메모리를 아끼려고 조각을 하나씩 따로 만든 뒤 이어 붙인다."""
+def detect_black_bars(clip: Path, start: float) -> str | None:
+    """원본에 들어 있는 위아래·양옆 검은 띠를 찾아 FFmpeg crop 값('w:h:x:y')으로. 없으면 None."""
+    out = subprocess.run([config.tool("ffmpeg"), "-hide_banner", "-ss", f"{start:.3f}", "-t", "2", "-i", str(clip),
+                          "-vf", "cropdetect=limit=24:round=2:reset=0", "-f", "null", "-"],
+                         capture_output=True, text=True)
+    found = re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", out.stderr)
+    if not found:
+        return None
+    w, h, x, y = map(int, found[-1])
+    full_w, full_h = (int(v) for v in subprocess.run(
+        [config.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+         "-of", "csv=p=0", str(clip)], capture_output=True, text=True, check=True).stdout.strip().split(","))
+    # 화면이 거의 그대로면(띠 없음) 또는 너무 많이 잘리면(어두운 장면 오판) 자르지 않음
+    if w * h >= full_w * full_h * 0.97 or w * h < full_w * full_h * 0.5:
+        return None
+    return f"{w}:{h}:{x}:{y}"
+
+
+def _render_part(clip: Path, start: float, length: float, part: Path, vf: str) -> None:
+    """클립의 start부터 length초를 세로로 잘라 저장. 클립이 짧으면 반복 재생. 검은 띠는 먼저 잘라냄."""
+    loop = ["-stream_loop", "-1"] if clip_duration(clip) < start + length else []
+    bars = detect_black_bars(clip, start)
+    if bars:
+        vf = f"crop={bars}," + vf
+    subprocess.run([config.tool("ffmpeg"), "-y", "-loglevel", "error", *loop, "-ss", f"{start:.3f}",
+                    "-t", f"{length:.3f}", "-i", str(clip), "-vf", vf, *_ffmpeg_out_args(), str(part)], check=True)
+
+
+def plan_by_segments(segments: list[dict], duration: float, clips: list[Path],
+                     rng: random.Random) -> list[tuple[Path, float, float]]:
+    """구간마다 배경 하나: bg_query로 검색한 영상 → 없으면 풀에서 (직전과 다른 것)."""
+    from src.fetch_assets import search_clip
+
+    plan, last = [], None
+    for i, seg in enumerate(segments):
+        start = 0.0 if i == 0 else seg["start"]
+        end = segments[i + 1]["start"] if i + 1 < len(segments) else duration
+        length = end - start
+        clip = search_clip(seg["bg_query"], rng) if seg.get("bg_query") else None
+        if clip is None:
+            if not clips:
+                raise RuntimeError("배경 풀이 비어 있고 검색 영상도 없습니다.")
+            clip = rng.choice([c for c in clips if c != last] or clips)
+        offset = rng.uniform(0, max(0.0, clip_duration(clip) - length - 0.1))
+        plan.append((clip, offset, length))
+        last = clip
+    return plan
+
+
+def make_background(duration: float, out_path: Path, pool: str | None = None, seed: int | None = None,
+                    segments: list[dict] | None = None) -> Path:
+    """배경 mp4를 만든다. 메모리를 아끼려고 조각을 하나씩 따로 만든 뒤 이어 붙인다.
+    segments를 주면 구간마다 배경을 바꾼다 (랭킹 등)."""
     cfg = config.load()
     vid, bg = cfg["video"], cfg["background"]
     w, h, fps = vid["width"], vid["height"], vid["fps"]
@@ -74,21 +126,21 @@ def make_background(duration: float, out_path: Path, pool: str | None = None, se
     clips = list_clips(pool) if pool else []
     ffmpeg = config.tool("ffmpeg")
 
-    if not clips:
+    if not clips and not segments:
         subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-f", "lavfi", "-i", gradient_source(duration),
                         *_ffmpeg_out_args(), str(out_path)], check=True)
         return out_path
 
     rng = random.Random(seed)
+    plan = plan_by_segments(segments, duration, clips, rng) if segments else plan_segments(clips, duration, rng)
     # 세로로 꽉 차게 키운 뒤 가운데를 자르고, 자막이 잘 보이게 살짝 어둡게
     vf = (f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps},"
           f"eq=brightness={bg['brightness']}:saturation={bg['saturation']}")
     with tempfile.TemporaryDirectory(dir=out_path.parent) as tmp:
         parts = []
-        for i, (clip, start, length) in enumerate(plan_segments(clips, duration, rng)):
+        for i, (clip, start, length) in enumerate(plan):
             part = Path(tmp) / f"part{i:03d}.mp4"
-            subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", f"{start:.3f}", "-t", f"{length:.3f}",
-                            "-i", str(clip), "-vf", vf, *_ffmpeg_out_args(), str(part)], check=True)
+            _render_part(clip, start, length, part, vf)
             parts.append(part)
         listing = Path(tmp) / "list.txt"
         listing.write_text("".join(f"file '{p.name}'\n" for p in parts))
