@@ -73,3 +73,8 @@ script:
 
 cleanup:
   keep_days: 14              # 서버에서 이 날짜보다 오래된 영상 폴더 삭제 (드라이브에 있을 때만)
+
+images:
+  daily_limit: 10            # 하루 AI 그림 상한. 구독 한도가 하루 10장 남짓 (2026-10-07 13장째에 429 오류) → 썰 하루 2개 × 4장
+  timeout_sec: 1500          # 그림 한 묶음 생성 최대 대기
+  usage_file: data/image_usage.json

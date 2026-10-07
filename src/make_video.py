@@ -12,19 +12,24 @@
 """
 import argparse
 import datetime as dt
+import json
 import logging
 import random
 import shutil
 from pathlib import Path
 
-from src import background, cases, channels, config, export, music, render, script, subtitle, tts
+from src import background, cases, channels, config, export, images, music, render, script, subtitle, tts
+
+log = logging.getLogger("make_video")
 
 
 def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str | None = None,
          music_pool: str | None = None, info: str = "", upload: bool = True, keep_work: bool = False,
-         seed: int | None = None, narrator: str | None = None, header: str | None = None) -> Path:
+         seed: int | None = None, narrator: str | None = None, header: str | None = None,
+         scenes: list[dict] | None = None, characters: str = "") -> Path:
     """대본 구간 목록 → 완성 영상. info는 업로드 정보 txt에 넣을 내용(제목·설명 등).
-    narrator: 화자 성별 (채널에 화자별 목소리가 있을 때), header: 화면 위에 계속 띄울 제목 (썰 등)"""
+    narrator: 화자 성별 (채널에 화자별 목소리가 있을 때), header: 화면 위에 계속 띄울 제목 (썰 등)
+    scenes/characters: 장면 그림 설명 (채널 설정 scene_images가 켜져 있으면 AI 그림 배경)"""
     cfg, st, ch = config.load(), script.style_config(style), channels.load(channel)
     bg_pool = bg_pool or cfg["background"]["pool"]
     music_pool = music_pool or (ch.get("music_pools") or [cfg["music"]["pool"]])[0]
@@ -41,10 +46,24 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
     print("2/5 자막 만드는 중...")
     ass = subtitle.make_subtitle(words, work / "sub.ass", times, st.get("layout"), header, ch.get("subtitle"))
     per_segment = times if st.get("background") == "per_segment" else None
-    print(f"3/5 배경 만드는 중... (풀: {bg_pool}{', 구간마다 전환' if per_segment else ''})")
     duration = render.audio_duration(mp3) + 1.0
-    bg = background.make_background(duration, work / "bg.mp4", bg_pool, seed=rng.randrange(1 << 30),
-                                    segments=per_segment)
+    bg, img_cfg = None, ch.get("scene_images") or {}
+    scenes = [x for x in (scenes or []) if isinstance(x, dict) and x.get("image")][:img_cfg.get("max_scenes", 4)]
+    if img_cfg.get("enabled") and len(scenes) >= 2:
+        print(f"3/5 장면 그림 {len(scenes)}장 그리는 중... (AI 그림, 몇 분 걸려요)")
+        try:
+            pics = images.generate([x["image"] for x in scenes], work / "scenes", img_cfg["art_style"], characters)
+            starts = background.scene_starts(scenes, " ".join(x["text"] for x in segments),
+                                             json.loads(words.read_text(encoding="utf-8")), duration)
+            bg = background.make_from_images(pics, starts, duration, work / "bg.mp4", seed=rng.randrange(1 << 30))
+            info = info.replace("\n[업로드 전 사실 확인]", "※ 장면 그림은 AI로 생성한 이미지입니다.\n\n[업로드 전 사실 확인]", 1)
+        except Exception as e:  # 그림이 안 되면 무료 영상 배경으로 계속
+            log.warning("장면 그림 실패, 일반 배경으로 대신: %s", e)
+            bg = None
+    if bg is None:
+        print(f"3/5 배경 만드는 중... (풀: {bg_pool}{', 구간마다 전환' if per_segment else ''})")
+        bg = background.make_background(duration, work / "bg.mp4", bg_pool, seed=rng.randrange(1 << 30),
+                                        segments=per_segment)
     track = music.pick(music_pool, rng)
     print(f"4/5 영상 합성 중... (음악: {track.stem if track else '없음'})")
     video = render.render(mp3, ass, work / "video.mp4", bg=bg, music=track)
@@ -91,7 +110,8 @@ def make_from_topic(topic: str | None, channel: str, style: str | None = None, u
     kwargs["bg_pool"] = kwargs.get("bg_pool") or data["background_pool"]
     kwargs["music_pool"] = kwargs.get("music_pool") or data["music_pool"]
     final = make(data["segments"], channel, style, info=info,
-                 narrator=data.get("narrator"), header=data.get("header"), **kwargs)
+                 narrator=data.get("narrator"), header=data.get("header"),
+                 scenes=data.get("scenes"), characters=str(data.get("characters", "")), **kwargs)
     if case:
         cases.mark_used(case["id"])
     result["path"] = str(final)

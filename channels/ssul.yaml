@@ -12,3 +12,6 @@ subtitle:
   highlight_color: "#FF7EB6"     # 분홍
 youtube_channel_id: ""
 banned_topics: []
+scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
+  enabled: true
+  art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"

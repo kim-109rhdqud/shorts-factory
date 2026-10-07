@@ -34,6 +34,12 @@
   카톡 초성(ㅋㅋ, ㅇㅇ)은 쓰지 말고 말로 풀어서 ("웃음 이모티콘 하나", "알겠음").
 - 길이: 공백 제외 {min_chars}~{max_chars}자.
 
+# 장면 그림 (영상 배경으로 쓸 웹툰 그림)
+- "characters": 주요 등장인물의 외모를 영어로 고정해서 적는다 (모든 장면에서 같은 사람으로 그려지게). 예: "Narrator: Korean woman in her late 20s, shoulder-length black hair, beige cardigan. Friend A: Korean woman, wavy brown hair, green sweater."
+- "scenes": 대본 흐름대로 정확히 4개 (도입, 갈등, 결정적 순간, 마무리). 각 장면은
+  - "from": 이 장면이 시작되는 대본 문장의 앞부분을 대본 글자 그대로 8~15자 (첫 장면은 대본 첫 문장)
+  - "image": 그 장면을 그릴 영어 설명. 장소, 인물(characters의 이름으로), 행동, 표정, 카메라 구도. 글자·말풍선·효과음 글자 금지.
+
 # 금지 주제
 {banned_topics} 에 해당하면 "script"를 빈 문자열로 둔다.
 
@@ -48,5 +54,7 @@
   "hashtags": ["#쇼츠", "#썰", "#사연", "주제 관련 태그 1~3개"],
   "background_pool": "다음 중 분위기에 맞는 하나: {background_pools}",
   "music_pool": "다음 중 분위기에 맞는 하나: {music_pools}",
-  "fact_check": ["업로드 전 확인할 점 (민감할 수 있는 표현 등). 없으면 빈 목록"]
+  "fact_check": ["업로드 전 확인할 점 (민감할 수 있는 표현 등). 없으면 빈 목록"],
+  "characters": "주요 등장인물 외모 (영어)",
+  "scenes": [{{"from": "장면이 시작되는 대본 문장 앞부분", "image": "English scene description"}}]
 }}

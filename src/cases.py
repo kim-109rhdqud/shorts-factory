@@ -97,7 +97,7 @@ def source_text(case: dict) -> str:
             f"[판시사항] {case['summary']}\n[판결요지] {case['gist']}\n[판결문 본문]\n{case['body'][:7000]}")
 
 
-def pick(rng: random.Random | None = None, tries: int = 4) -> dict:
+def pick(rng: random.Random | None = None, tries: int = 8) -> dict:
     """아직 안 쓴 생활 분쟁 판례 하나를 고른다 (AI가 후보 중 가장 공감되는 것 선택)."""
     rng = rng or random.Random()
     st = script.style_config("case")
@@ -110,15 +110,15 @@ def pick(rng: random.Random | None = None, tries: int = 4) -> dict:
         if not hits:
             continue
         rng.shuffle(hits)
-        cands = [fetch(h["판례일련번호"]) for h in hits[:6]]
+        cands = [fetch(h["판례일련번호"]) for h in hits[:8]]
         cands = [c for c in cands if c and len(c["body"]) > 1500 and (c["summary"] or c["gist"])]
         if not cands:
             continue
         listing = "\n".join(f"{i}. [{c['name']}] {(c['summary'] or c['gist'])[:300]}" for i, c in enumerate(cands))
         prompt = (f"아래는 '{keyword}' 관련 민사 판례 후보다. 일반인이 '나도 겪을 수 있겠다' 싶은 생활 분쟁이고, "
                   "사연으로 풀었을 때 재밌고, 결과(누가 이겼는지, 얼마를 물어 줬는지)가 분명한 것을 하나 고른다. "
-                  "회사 간 분쟁, 세금, 복잡한 법리 다툼, 범죄·폭력·성 관련, 너무 무거운 사건은 고르지 않는다. "
-                  "적당한 게 없으면 -1.\n\n"
+                  "회사 간 분쟁, 세금, 복잡한 법리 다툼, 범죄·폭력·성 관련, 너무 무거운 사건은 피한다. "
+                  "완벽하지 않아도 후보 중 가장 나은 것을 고른다. 전부 위에서 피하라고 한 종류일 때만 -1.\n\n"
                   f"{listing}\n\n숫자 하나만 출력한다.")
         text, _ = llm.generate(prompt)
         m = re.search(r"-?\d+", text)

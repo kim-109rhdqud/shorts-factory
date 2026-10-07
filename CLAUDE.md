@@ -190,14 +190,8 @@ shorts-factory/
 
 - 영상 길이 (30 / 40 / 60초)
 - 퀴즈·명언 스타일: 프로젝트가 커진 뒤에 추가 (사용자 결정, 2026-10-05)
-- AI 영상 배경 도입 여부와 월 예산 (사용자가 원함, 2026-10-02 보류)
-  - A. Veo 유료 API: Lite 약 $0.05/초. 전부 AI면 영상당 약 $2, 앞 8초(훅)만 AI면 약 $0.4 ← 추천안
-  - B. Google AI Pro의 Flow 크레딧으로 사용자가 직접 클립을 만들어 풀에 쌓기 (추가 비용 없음, 반복 콘텐츠 위험)
-  - C. GPU 서버를 잠깐 빌려 공개 모델(Wan, LTX-Video) 사용 (세팅 복잡)
-  - 유료 API는 "유료 API 키 금지" 규칙의 예외라서 사용자 결정 필요. 실사 같은 AI 영상은 유튜브 업로드 때 AI 표시 필요
-  - `background` 모듈은 소스를 바꿔 끼울 수 있게 설계할 것
-  - 2단계는 Pexels 무료 영상으로 임시 진행 (사용자 동의). 배경 방식은 나중에 AI 영상과 함께 다시 결정
-  - 채널별 배경 차별화도 이때 같이 결정 (5단계에서 보류, 2026-10-05)
+- AI 영상 배경 (유료 Veo 등): 보류. 수익이 나면 썰 채널의 중요 장면(첫 장면·판결)만 영상으로 바꾸는 것 검토
+  - 참고 비용: Veo Lite 약 $0.05/초. 썰 채널 장면마다 영상이면 월 15~25만 원, 첫 장면만이면 월 4~5만 원
 
 ## 현재 진행 상황
 
@@ -267,3 +261,11 @@ shorts-factory/
     - cleanup: 14일 지난 날짜 폴더는 드라이브에 다 있을 때만 삭제 (rclone check), `_work` 하루, logs 60일
     - 실행 기록: `logs/cron.log`, `logs/<날짜>.log`
     - 법제처 본인 계정은 다음에 (사용자 결정) → 그때까지 OC=test
+  - 배경 결정 (2026-10-07): 잡학·랭킹 = 무료 실사 영상(현행), 썰 채널 = AI 장면 그림 + 움직임 효과 (추가 비용 0원)
+    - `src/images.py`: Antigravity CLI 이미지 생성(Nano Banana, Google AI Pro 구독). `--mode accept-edits`(파일 편집만 허용, 명령 실행 금지)
+    - agy는 그림을 `~/.gemini/antigravity-cli/brain/<대화ID>/sceneN_*.jpg`에 저장 → 찾아서 복사. 동영상 생성 기능은 없음 (NO_VIDEO_TOOL)
+    - 구독 그림 한도: 하루 약 10장 남짓 (13장째 429 RESOURCE_EXHAUSTED) → 영상당 4장, `images.daily_limit: 10`
+    - 대본 JSON에 characters(인물 외모, 영어)와 scenes 4개(from=대본 문장 앞부분, image=영어 장면 설명) → 장면 시작 시간은 from을 단어 타이밍에 맞춤
+    - `background.make_from_images`: 확대·이동(Ken Burns) 4종 + xfade 전환. 그림이 절반 이상 실패하면 무료 영상 배경으로 대신
+    - 채널 설정 `scene_images` (ssul만 켜짐), 설명란에 "장면 그림은 AI로 생성" 자동 표기
+    - 판례 고르기: 키워드 8개까지 시도, "가장 나은 것 선택" 기준으로 완화

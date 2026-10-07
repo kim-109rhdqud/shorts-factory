@@ -10,6 +10,7 @@
 import argparse
 import random
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -146,6 +147,103 @@ def make_background(duration: float, out_path: Path, pool: str | None = None, se
         listing.write_text("".join(f"file '{p.name}'\n" for p in parts))
         subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(listing),
                         "-c", "copy", str(out_path)], check=True)
+    return out_path
+
+
+# ---------- AI 장면 그림 → 움직이는 배경 ----------
+
+def _squash(text: str) -> str:
+    return re.sub(r"[\s\W_]+", "", text)
+
+
+def scene_starts(scenes: list[dict], script_text: str, words: list[dict], duration: float) -> list[float]:
+    """장면마다 시작 시간(초). 장면의 "from"(대본 문장 앞부분)을 대본에서 찾아 그 단어가 읽히는 시간으로.
+    못 찾거나 순서가 꼬이면 그 장면은 앞뒤 사이 중간쯤으로."""
+    flat = _squash(script_text)
+    # 단어마다 '공백 뺀 대본'에서의 시작 글자 위치
+    pos, offsets = 0, []
+    for w in words:
+        k = flat.find(_squash(w["text"]), pos)
+        offsets.append(k if k >= 0 else pos)
+        pos = (k if k >= 0 else pos) + len(_squash(w["text"]))
+    starts = []
+    for i, sc in enumerate(scenes):
+        if i == 0:
+            starts.append(0.0)
+            continue
+        k = flat.find(_squash(sc.get("from", ""))[:10]) if sc.get("from") else -1
+        t = None
+        if k >= 0:
+            idx = next((j for j, o in enumerate(offsets) if o >= k), len(words) - 1)
+            t = words[idx]["start"]
+        starts.append(t)
+    # 빈 칸·순서 꼬임 보정: 앞 장면보다 2초 이상 뒤가 아니면 균등 분배로
+    even = [duration * i / len(scenes) for i in range(len(scenes))]
+    fixed = []
+    for i, t in enumerate(starts):
+        prev = fixed[-1] if fixed else -1
+        fixed.append(t if t is not None and t >= prev + 2.0 and t < duration - 2.0 else max(even[i], prev + 2.0))
+    return fixed
+
+
+KEN_BURNS = {  # 확대·이동 효과 (p = 0→1 진행률)
+    "zoom_in": ("1+0.18*{p}", "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"),
+    "zoom_out": ("1.18-0.18*{p}", "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"),
+    "pan_down": ("1.15", "iw/2-(iw/zoom/2)", "(ih-ih/zoom)*{p}"),
+    "pan_up": ("1.15", "iw/2-(iw/zoom/2)", "(ih-ih/zoom)*(1-{p})"),
+}
+
+
+def make_from_images(images: list[Path | None], starts: list[float], duration: float, out_path: Path,
+                     seed: int | None = None, fade: float = 0.5) -> Path:
+    """장면 그림들을 확대·이동 효과 + 부드러운 전환(xfade)으로 이어 배경 mp4를 만든다.
+    못 만든 그림(None)은 앞(없으면 뒤) 그림으로 채움. 절반 이상 없으면 오류 (→ 무료 영상으로 대신)."""
+    valid = [p for p in images if p]
+    if len(valid) < max(1, len(images) / 2):
+        raise RuntimeError("장면 그림이 너무 적음")
+    filled, last = [], None
+    for p in images:
+        last = p or last
+        filled.append(last)
+    filled = [p or valid[0] for p in filled]
+
+    vid, bg = config.load()["video"], config.load()["background"]
+    w, h, fps = vid["width"], vid["height"], vid["fps"]
+    rng = random.Random(seed)
+    lengths = [(starts[i + 1] if i + 1 < len(starts) else duration) - starts[i] for i in range(len(starts))]
+    effects, prev = [], None
+    for _ in lengths:
+        prev = rng.choice([e for e in KEN_BURNS if e != prev])
+        effects.append(prev)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=out_path.parent) as tmp:
+        parts = []
+        for i, (img, length, eff) in enumerate(zip(filled, lengths, effects)):
+            part_len = length + (fade if i + 1 < len(lengths) else 0)
+            frames = max(2, round(part_len * fps))
+            p = f"(on/{frames - 1})"
+            z, x, y = (e.format(p=p) for e in KEN_BURNS[eff])
+            vf = (f"scale={w * 3 // 2}:-2,zoompan=z='{z}':x='{x}':y='{y}':d=1:s={w}x{h}:fps={fps},"
+                  f"eq=brightness={bg['brightness'] / 2}:saturation=1.05,setsar=1")
+            part = Path(tmp) / f"img{i:02d}.mp4"
+            subprocess.run([config.tool("ffmpeg"), "-y", "-loglevel", "error", "-loop", "1", "-framerate", str(fps),
+                            "-t", f"{part_len:.3f}", "-i", str(img), "-vf", vf, "-frames:v", str(frames),
+                            *_ffmpeg_out_args(), str(part)], check=True)
+            parts.append(part)
+        if len(parts) == 1:
+            shutil.copy(parts[0], out_path)
+            return out_path
+        inputs, chain, offset, label = [], [], 0.0, "0:v"
+        for i, part in enumerate(parts):
+            inputs += ["-i", str(part)]
+        for i in range(1, len(parts)):
+            offset += lengths[i - 1]
+            out = f"v{i}"
+            chain.append(f"[{label}][{i}:v]xfade=transition=fade:duration={fade}:offset={offset:.3f}[{out}]")
+            label = out
+        subprocess.run([config.tool("ffmpeg"), "-y", "-loglevel", "error", *inputs, "-filter_complex",
+                        ";".join(chain), "-map", f"[{label}]", *_ffmpeg_out_args(), str(out_path)], check=True)
     return out_path
 
 
