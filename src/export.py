@@ -44,6 +44,13 @@ def upload(folder: Path) -> str:
     return remote
 
 
+def upload_file(path: Path, name: str) -> str:
+    """파일 하나를 드라이브 shorts-factory/ 바로 아래에 name으로 올린다 (상태 파일 등)."""
+    remote = f"{config.load()['drive']['remote']}/{name}"
+    subprocess.run([config.tool("rclone"), "copyto", str(path), remote], check=True)
+    return remote
+
+
 def main():
     ap = argparse.ArgumentParser(description="폴더를 구글 드라이브로 업로드")
     ap.add_argument("folder", type=Path)

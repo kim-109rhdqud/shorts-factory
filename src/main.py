@@ -83,12 +83,34 @@ def run(channel_ids: list[str], count: int | None = None, dry_run: bool = False)
     return summary
 
 
+def write_status(s: dict, label: str) -> None:
+    """드라이브에 상태 파일(_상태.txt) 올리기: 알림 대신 폰으로 드라이브 볼 때 같이 확인."""
+    lines = [f"[{dt.datetime.now():%Y-%m-%d %H:%M}] {label}",
+             f"성공 {len(s['done'])}개, 실패 {len(s['failed'])}개"]
+    if s["stopped"]:
+        lines.append(f"⚠️ 중단됨: {s['stopped']}")
+        if "로그인" in s["stopped"]:
+            lines.append("→ 서버에서 AI 다시 로그인이 필요해요. Claude Code에게 '로그인 만료 해결해줘'라고 말해 주세요.")
+    for d in s["done"]:
+        lines.append(f"  ✅ {d.get('channel')} {d.get('uid', '')} {d.get('title') or d.get('topic') or ''}")
+    for f in s["failed"]:
+        lines.append(f"  ❌ {f.get('channel')} {f.get('topic') or ''} {f.get('error', '')[:150]}")
+    status = config.path("logs/_상태.txt")
+    old = status.read_text(encoding="utf-8").split("\n\n")[:13] if status.exists() else []  # 최근 14번만 유지
+    status.write_text("\n\n".join(["\n".join(lines)] + old), encoding="utf-8")
+    try:
+        export.upload_file(status, "_상태.txt")
+    except Exception:
+        log.exception("상태 파일 업로드 실패")
+
+
 def main():
     setup_logging()
     ap = argparse.ArgumentParser(description="모든 채널 영상 만들기")
     ap.add_argument("--channel", action="append", help="이 채널만 (여러 번 쓸 수 있음). 없으면 전부")
     ap.add_argument("--count", type=int, help="채널당 개수 (없으면 채널 설정 daily_count)")
     ap.add_argument("--dry-run", action="store_true", help="영상은 안 만들고 주제만 정해 보기")
+    ap.add_argument("--cron", action="store_true", help="자동 실행용 (끝나고 오래된 영상 정리)")
     args = ap.parse_args()
     ids = args.channel or channels.list_ids()
     log.info("시작: 채널 %s%s", ids, " (주제만 보기)" if args.dry_run else "")
@@ -97,6 +119,14 @@ def main():
              f", 중단: {s['stopped']}" if s["stopped"] else "")
     for f in s["failed"]:
         log.info("  실패: %s", f)
+    if not args.dry_run:
+        write_status(s, "자동 실행" if args.cron else "수동 실행")
+        if args.cron:  # 자동 실행 때는 오래된 영상도 정리
+            from src import cleanup
+            try:
+                cleanup.cleanup(config.load().get("cleanup", {}).get("keep_days", 14))
+            except Exception:
+                log.exception("정리 실패")
 
 
 if __name__ == "__main__":

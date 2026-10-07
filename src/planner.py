@@ -66,11 +66,16 @@ def is_duplicate(topic: str, others: list[str]) -> str | None:
 
 
 def assign_styles(ch: dict, count: int) -> list[str]:
-    """스타일을 번갈아 배정. 오늘 날짜로 시작 위치를 돌려서 매일 순서가 고정되지 않게."""
-    import datetime as dt
-    styles = ch["styles"]
-    start = dt.date.today().toordinal() % len(styles)
-    return [styles[(start + i) % len(styles)] for i in range(count)]
+    """스타일 배정: 최근 7일 동안 덜 만든 스타일부터 (하루 여러 번 나눠 돌려도 번갈아 나오게).
+    같으면 채널 설정에 적힌 순서대로."""
+    recent = db.style_counts(ch["id"], days=7)
+    counts = {s: recent.get(s, 0) for s in ch["styles"]}
+    order = []
+    for _ in range(count):
+        style = min(ch["styles"], key=lambda s: (counts[s], ch["styles"].index(s)))
+        order.append(style)
+        counts[style] += 1
+    return order
 
 
 def suggest_topics(ch: dict, style: str, n: int) -> list[str]:

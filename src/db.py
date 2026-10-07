@@ -69,6 +69,15 @@ def past_topics(channel: str, style: str | None = None, limit: int = 300) -> lis
     return [r["topic"] for r in rows]
 
 
+def style_counts(channel: str, days: int = 7) -> dict[str, int]:
+    """채널의 최근 며칠간 스타일별 성공 개수."""
+    since = (dt.datetime.now() - dt.timedelta(days=days)).isoformat(timespec="seconds")
+    with closing(connect()) as con:
+        rows = con.execute("SELECT style, COUNT(*) n FROM videos WHERE channel = ? AND status = 'done' "
+                           "AND created_at >= ? GROUP BY style", (channel, since)).fetchall()
+    return {r["style"]: r["n"] for r in rows}
+
+
 def used_case_ids() -> set[str]:
     with closing(connect()) as con:
         return {r["case_id"] for r in con.execute("SELECT case_id FROM videos WHERE case_id IS NOT NULL "

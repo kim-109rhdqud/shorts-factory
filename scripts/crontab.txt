@@ -1,0 +1,3 @@
+# shorts-factory: 매일 04:00, 14:00 (한국 시간) 채널마다 1개씩
+0 4 * * * /home/ubuntu/shorts-factory/scripts/daily.sh 1
+0 14 * * * /home/ubuntu/shorts-factory/scripts/daily.sh 1
