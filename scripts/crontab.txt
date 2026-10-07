@@ -1,3 +1,5 @@
-# shorts-factory: 매일 04:00, 14:00 (한국 시간) 채널마다 1개씩
-0 4 * * * /home/ubuntu/shorts-factory/scripts/daily.sh 1
-0 14 * * * /home/ubuntu/shorts-factory/scripts/daily.sh 1
+# shorts-factory (한국 시간)
+# 04:00 썰 채널 2개 (구글 그림 한도를 먼저 쓰게)
+0 4 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel ssul --count 2
+# 16:00 잡학 한입 2개 + 순위 연구소 2개
+0 16 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel japhak --channel ranklab --count 2

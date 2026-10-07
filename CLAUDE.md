@@ -252,7 +252,7 @@ shorts-factory/
     - 실패한 영상은 기록 후 건너뜀. AuthExpired/DailyLimit이면 중단. 로그 `logs/<날짜>.log`
     - 금지 주제 글자 검사는 주제·제목만 (대본 본문은 '성인 남성' 같은 오판 → AI 검토에 맡김)
     - 6개 제작 약 15분 (영상당 3~5분), 하루 LLM 약 20회 예상 (agy 상한 40)
-  - 7단계 (사용자 결정 2026-10-07): 매일 04:00, 14:00 (KST) 채널마다 1개씩 = 하루 6개. 알림 없음. 서버 영상 14일 보관
+  - 7단계 (사용자 결정 2026-10-07): (처음엔 04:00·14:00 채널마다 1개씩 → 아래 '일정 변경'으로 바뀜) 하루 6개. 알림 없음. 서버 영상 14일 보관
     - 서버 시간대를 Asia/Seoul로 변경 (날짜 폴더·cron 시간이 한국 기준)
     - cron → `scripts/daily.sh` (flock으로 겹침 방지, PATH 설정) → `src.main --count 1 --cron` → 끝나고 `src.cleanup`
     - crontab 내용은 `scripts/crontab.txt`에 백업 (복구: `crontab scripts/crontab.txt`)
@@ -269,3 +269,7 @@ shorts-factory/
     - `background.make_from_images`: 확대·이동(Ken Burns) 4종 + xfade 전환. 그림이 절반 이상 실패하면 무료 영상 배경으로 대신
     - 채널 설정 `scene_images` (ssul만 켜짐), 설명란에 "장면 그림은 AI로 생성" 자동 표기
     - 판례 고르기: 키워드 8개까지 시도, "가장 나은 것 선택" 기준으로 완화
+  - 일정 변경 (2026-10-07, 사용자 결정): 04:00 썰 채널 2개 (story 1 + case 1), 16:00 잡학 2개 + 랭킹 2개. 하루 6개 유지
+    - 썰 채널 = 최우선 (`priority: 1`, 새벽에 구글 한도를 먼저 사용). `scene_images.required: true` → 그림을 못 그리면 무료 영상으로 대신하지 않고 "skipped"로 기록하고 건너뜀 (다음 실행에서 재시도)
+    - 그림 한도 감지: 우리 상한(`images.daily_limit`) 또는 agy 기록의 429 RESOURCE_EXHAUSTED → 그날 남은 썰 영상은 대본 쓰기 전에 바로 건너뜀
+    - `daily.sh`는 인자를 그대로 `src.main`에 넘김 (`--channel`, `--count`)

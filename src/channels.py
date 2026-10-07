@@ -15,7 +15,9 @@ CHANNEL_DIR = config.path("channels")
 
 
 def list_ids() -> list[str]:
-    return sorted(p.stem for p in CHANNEL_DIR.glob("*.yaml"))
+    """채널 ID 목록. priority가 작은 채널부터 (없으면 9), 같으면 이름순."""
+    ids = sorted(p.stem for p in CHANNEL_DIR.glob("*.yaml"))
+    return sorted(ids, key=lambda c: load(c).get("priority", 9))
 
 
 def load(channel_id: str) -> dict:

@@ -23,6 +23,10 @@ from src import background, cases, channels, config, export, images, music, rend
 log = logging.getLogger("make_video")
 
 
+class SkipVideo(RuntimeError):
+    """이 영상은 만들지 않고 건너뜀 (예: 썰 채널 그림 한도). 다음 실행에서 다시 시도."""
+
+
 def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str | None = None,
          music_pool: str | None = None, info: str = "", upload: bool = True, keep_work: bool = False,
          seed: int | None = None, narrator: str | None = None, header: str | None = None,
@@ -49,6 +53,9 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
     duration = render.audio_duration(mp3) + 1.0
     bg, img_cfg = None, ch.get("scene_images") or {}
     scenes = [x for x in (scenes or []) if isinstance(x, dict) and x.get("image")][:img_cfg.get("max_scenes", 4)]
+    if img_cfg.get("required") and len(scenes) < 2:
+        shutil.rmtree(work, ignore_errors=True)
+        raise SkipVideo("대본에 장면 설명이 없어 건너뜀")
     if img_cfg.get("enabled") and len(scenes) >= 2:
         print(f"3/5 장면 그림 {len(scenes)}장 그리는 중... (AI 그림, 몇 분 걸려요)")
         try:
@@ -57,8 +64,11 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
                                              json.loads(words.read_text(encoding="utf-8")), duration)
             bg = background.make_from_images(pics, starts, duration, work / "bg.mp4", seed=rng.randrange(1 << 30))
             info = info.replace("\n[업로드 전 사실 확인]", "※ 장면 그림은 AI로 생성한 이미지입니다.\n\n[업로드 전 사실 확인]", 1)
-        except Exception as e:  # 그림이 안 되면 무료 영상 배경으로 계속
-            log.warning("장면 그림 실패, 일반 배경으로 대신: %s", e)
+        except Exception as e:
+            if img_cfg.get("required"):  # 그림 필수 채널: 무료 영상으로 대신하지 않고 건너뜀
+                shutil.rmtree(work, ignore_errors=True)
+                raise SkipVideo(f"장면 그림을 못 만들어 건너뜀: {e}") from e
+            log.warning("장면 그림 실패, 일반 배경으로 대신: %s", e)  # 그 외 채널은 무료 영상 배경으로 계속
             bg = None
     if bg is None:
         print(f"3/5 배경 만드는 중... (풀: {bg_pool}{', 구간마다 전환' if per_segment else ''})")
@@ -88,6 +98,9 @@ def make_from_topic(topic: str | None, channel: str, style: str | None = None, u
     result: dict를 주면 진행하면서 알게 된 정보(주제, 제목, 판례 등)를 채워 준다 (실패해도 기록용)."""
     result = {} if result is None else result
     ch = channels.load(channel)
+    img_cfg = ch.get("scene_images") or {}
+    if img_cfg.get("required") and images.quota_left() < img_cfg.get("max_scenes", 4):
+        raise SkipVideo(f"오늘 그림 한도가 남지 않아 건너뜀 (남은 {images.quota_left()}장)")
     style = style or ch["styles"][0]
     source, case = None, None
     if style == "case":

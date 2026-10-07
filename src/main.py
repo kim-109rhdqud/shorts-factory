@@ -16,7 +16,7 @@ import logging
 import time
 
 from src import channels, config, db, export, llm, planner
-from src.make_video import make_from_topic
+from src.make_video import SkipVideo, make_from_topic
 
 log = logging.getLogger("main")
 
@@ -33,7 +33,7 @@ def setup_logging() -> None:
 
 def run(channel_ids: list[str], count: int | None = None, dry_run: bool = False) -> dict:
     """영상 만들기. 돌려주는 것: {"done": [...], "failed": [...], "stopped": 이유 또는 None}"""
-    summary = {"done": [], "failed": [], "stopped": None}
+    summary = {"done": [], "failed": [], "skipped": [], "stopped": None}
     for cid in channel_ids:
         try:
             plan = planner.plan_channel(cid, count)
@@ -62,6 +62,11 @@ def run(channel_ids: list[str], count: int | None = None, dry_run: bool = False)
                 uploaded.add(path.parent)
                 summary["done"].append({"channel": cid, "uid": uid, "title": info.get("title"), "path": str(path)})
                 log.info("완료 %s %s (%.0f초)", uid, info.get("title"), time.time() - start)
+            except SkipVideo as e:  # 썰 채널 그림 한도 등: 실패가 아니라 건너뜀, 이 채널의 남은 영상도 건너뜀
+                db.record(uid, cid, item["style"], "skipped", topic=info.get("topic") or item["topic"], error=str(e))
+                summary["skipped"].append({"channel": cid, "topic": info.get("topic") or item["topic"], "reason": str(e)})
+                log.warning("건너뜀 %s: %s", cid, e)
+                break
             except (llm.AuthExpired, llm.DailyLimit) as e:
                 db.record(uid, cid, item["style"], "failed", topic=info.get("topic") or item["topic"], error=str(e))
                 summary["stopped"] = str(e)
@@ -86,7 +91,7 @@ def run(channel_ids: list[str], count: int | None = None, dry_run: bool = False)
 def write_status(s: dict, label: str) -> None:
     """드라이브에 상태 파일(_상태.txt) 올리기: 알림 대신 폰으로 드라이브 볼 때 같이 확인."""
     lines = [f"[{dt.datetime.now():%Y-%m-%d %H:%M}] {label}",
-             f"성공 {len(s['done'])}개, 실패 {len(s['failed'])}개"]
+             f"성공 {len(s['done'])}개, 실패 {len(s['failed'])}개, 건너뜀 {len(s.get('skipped', []))}개"]
     if s["stopped"]:
         lines.append(f"⚠️ 중단됨: {s['stopped']}")
         if "로그인" in s["stopped"]:
@@ -95,6 +100,8 @@ def write_status(s: dict, label: str) -> None:
         lines.append(f"  ✅ {d.get('channel')} {d.get('uid', '')} {d.get('title') or d.get('topic') or ''}")
     for f in s["failed"]:
         lines.append(f"  ❌ {f.get('channel')} {f.get('topic') or ''} {f.get('error', '')[:150]}")
+    for k in s.get("skipped", []):
+        lines.append(f"  ⏭️ {k.get('channel')} 건너뜀: {k.get('reason', '')[:150]}")
     status = config.path("logs/_상태.txt")
     old = status.read_text(encoding="utf-8").split("\n\n")[:13] if status.exists() else []  # 최근 14번만 유지
     status.write_text("\n\n".join(["\n".join(lines)] + old), encoding="utf-8")

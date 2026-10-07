@@ -7,6 +7,7 @@ voices:                          # 화자 성별 → 목소리 (썰 스타일)
 speech_rate: "+30%"
 voice_pitch: "-4Hz"              # 다른 채널과 구분되게 살짝 낮은 톤
 daily_count: 2
+priority: 1                      # 숫자가 작을수록 먼저 제작 (구글 한도를 썰 채널이 먼저 쓰게)
 music_pools: [calm, mystery]
 subtitle:
   highlight_color: "#FF7EB6"     # 분홍
@@ -14,4 +15,5 @@ youtube_channel_id: ""
 banned_topics: []
 scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
   enabled: true
+  required: true                 # 그림을 못 그리면(한도 등) 무료 영상으로 대신하지 말고 이 영상은 건너뜀
   art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"

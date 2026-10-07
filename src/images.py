@@ -28,6 +28,10 @@ class ImageError(RuntimeError):
     pass
 
 
+class QuotaExhausted(ImageError):
+    """구독 그림 한도 초과 (또는 우리가 정한 하루 상한). 오늘은 더 시도하지 않는다."""
+
+
 def _cfg() -> dict:
     return config.load()["images"]
 
@@ -44,6 +48,11 @@ def _add_usage(n: int) -> None:
     data = json.loads(f.read_text()) if f.exists() else {}
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps({today: data.get(today, 0) + n}))
+
+
+def quota_left() -> int:
+    """오늘 더 그릴 수 있는 그림 수 (우리 상한 기준)."""
+    return max(0, _cfg()["daily_limit"] - _usage_today())
 
 
 def build_prompt(descriptions: list[str], art_style: str, characters: str = "") -> str:
@@ -79,7 +88,7 @@ def generate(descriptions: list[str], out_dir: Path, art_style: str, characters:
     """장면 설명들 → out_dir/scene{i}.jpg. 못 만든 장면은 None."""
     n = len(descriptions)
     if _usage_today() + n > _cfg()["daily_limit"]:
-        raise ImageError(f"오늘 그림 상한({_cfg()['daily_limit']}장) 초과")
+        raise QuotaExhausted(f"오늘 그림 상한({_cfg()['daily_limit']}장) 도달")
     sandbox = config.path(config.load()["llm"]["sandbox"])
     sandbox.mkdir(parents=True, exist_ok=True)
     cmd = [config.tool("agy"), "-p", build_prompt(descriptions, art_style, characters), "--mode", "accept-edits",
@@ -104,7 +113,20 @@ def generate(descriptions: list[str], out_dir: Path, art_style: str, characters:
         shutil.copy2(src, dest)
         results.append(dest)
     log.info("그림 %d/%d장 생성", sum(r is not None for r in results), n)
+    if any(r is None for r in results) and _quota_error_in(conv):
+        _add_usage(_cfg()["daily_limit"])  # 오늘 남은 시도는 바로 건너뛰게
+        raise QuotaExhausted(f"구독 그림 한도 초과 (429 RESOURCE_EXHAUSTED), {sum(r is not None for r in results)}/{n}장만 생성")
     return results
+
+
+def _quota_error_in(conversation_id: str) -> bool:
+    """agy 대화 기록(하위 에이전트 포함)에 한도 초과 오류가 있었는지."""
+    for d in [BRAIN / conversation_id] + [BRAIN / p.stem for p in
+                                          (BRAIN / conversation_id / ".system_generated" / "subagents").glob("*.json")]:
+        for f in d.glob(".system_generated/logs/transcript*.jsonl"):
+            if "RESOURCE_EXHAUSTED" in f.read_text(errors="ignore"):
+                return True
+    return False
 
 
 def main():
