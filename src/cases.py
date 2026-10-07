@@ -79,7 +79,10 @@ def fetch(case_id: str) -> dict | None:
 
 
 def used_ids() -> set[str]:
-    return set(json.loads(USED_FILE.read_text())) if USED_FILE.exists() else set()
+    """이미 쓴 판례 (DB 기록 + 파일 기록)."""
+    from src import db
+    saved = set(json.loads(USED_FILE.read_text())) if USED_FILE.exists() else set()
+    return saved | db.used_case_ids()
 
 
 def mark_used(case_id: str) -> None:

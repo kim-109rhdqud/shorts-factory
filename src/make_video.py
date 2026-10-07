@@ -60,10 +60,14 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
     return final
 
 
-def make_from_topic(topic: str | None, channel: str, style: str | None = None, **kwargs) -> Path:
+def make_from_topic(topic: str | None, channel: str, style: str | None = None, uid: str | None = None,
+                    result: dict | None = None, **kwargs) -> Path:
     """주제 → AI 대본 → 완성 영상. 스타일은 채널 설정의 첫 번째 스타일이 기본.
     판례 썰(case)은 주제 없이 판례를 자동으로 골라 쓴다.
-    배경·음악 풀은 AI가 고른 것을 쓰되, 직접 지정하면 그걸 우선."""
+    배경·음악 풀은 AI가 고른 것을 쓰되, 직접 지정하면 그걸 우선.
+    uid: 영상 고유 코드 (설명란에 넣어 8단계에서 유튜브 영상과 짝 맞춤).
+    result: dict를 주면 진행하면서 알게 된 정보(주제, 제목, 판례 등)를 채워 준다 (실패해도 기록용)."""
+    result = {} if result is None else result
     ch = channels.load(channel)
     style = style or ch["styles"][0]
     source, case = None, None
@@ -73,17 +77,24 @@ def make_from_topic(topic: str | None, channel: str, style: str | None = None, *
         topic = topic or f"{case['name']}: {(case['summary'] or case['gist'])[:200]}"
         source = {"text": cases.source_text(case), "info": {"court": case["court"], "case_no": case["case_no"]}}
         print(f"    판례: {case['court']} {case['case_no']} ({case['keyword']})")
+        result["case_id"] = case["id"]
     if not topic:
         raise ValueError("주제(--topic)가 필요합니다.")
+    result.update(topic=topic, style=style)
     print(f"0/5 대본 쓰는 중... (채널: {ch['name']}, 주제: {topic[:60]}, 스타일: {style})")
     data = script.generate(topic, style, ch, source)
+    result.update(title=data["title"], provider=data["provider"])
+    info = script.upload_text(data)
+    if uid:  # 설명란 끝에 붙여 넣을 영상 코드
+        info = info.replace("\n[업로드 전 사실 확인]", f"영상 코드: {uid}\n\n[업로드 전 사실 확인]", 1)
     print(f"    제목: {data['title']} ({data['provider']}, {script.script_length(data['script'])}자)")
     kwargs["bg_pool"] = kwargs.get("bg_pool") or data["background_pool"]
     kwargs["music_pool"] = kwargs.get("music_pool") or data["music_pool"]
-    final = make(data["segments"], channel, style, info=script.upload_text(data),
+    final = make(data["segments"], channel, style, info=info,
                  narrator=data.get("narrator"), header=data.get("header"), **kwargs)
     if case:
         cases.mark_used(case["id"])
+    result["path"] = str(final)
     return final
 
 

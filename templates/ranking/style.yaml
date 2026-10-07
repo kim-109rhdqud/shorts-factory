@@ -9,3 +9,7 @@ background: per_segment   # 구간마다 배경 바꿈. bg_query로 항목에 �
 layout:
   label: {font_size: 190, position_y: 0.16, color: "#FFE400", outline: 10}
   item: {font_size: 96, position_y: 0.255, color: "#FFFFFF", outline: 8}
+topic_guide: |
+  - 수치로 순위를 매길 수 있는 주제 (가장 빠른, 큰, 비싼, 오래된, 깊은, 위험한 등)
+  - 1위가 의외이거나 놀라운 것. 자료가 많고 순위가 비교적 확실한 것
+  - 동물, 자연, 우주, 건축, 탈것, 음식, 세계 기록 등 분야를 섞기 (실존 인물·기업 순위는 피하기)

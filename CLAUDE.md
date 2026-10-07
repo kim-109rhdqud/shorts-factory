@@ -202,7 +202,7 @@ shorts-factory/
 
 ## 현재 진행 상황
 
-- 현재 단계: 5 완료 → 다음: 6단계 주제 자동 선정 + 중복 방지
+- 현재 단계: 6 완료 → 다음: 7단계 cron 자동 실행
 - 메모:
   - 서버: AWS Lightsail 서울, 고정 IP 15.165.80.188, 2코어/2GB + 스왑 2GB (권장 사양보다 작음, 영상 합성 때 확인 필요)
   - code-server: https://15-165-80-188.sslip.io (Caddy 자동 HTTPS → 127.0.0.1:8080)
@@ -251,3 +251,11 @@ shorts-factory/
     - case(판례 썰): 법제처 Open API로 생활 분쟁 판례 검색 → AI가 공감되는 사건 선택 → 당사자 1인칭 사연 + "판결" 공개. 판결문은 저작권법 제7조로 보호 대상 아님. 사실·금액은 판결문 그대로, 설명란에 사건번호 표기
     - 법제처 API 이용자 ID: .env `LAW_API_OC` (없으면 시험용 test). 사용자가 open.law.go.kr에서 본인 계정 신청 필요 (7단계 전)
     - 썰 채널 하루 2개 = story 1 + case 1
+  - 6단계: `.venv/bin/python -m src.main` 한 번에 모든 채널 daily_count만큼 제작 (`--dry-run` 주제만, `--channel`, `--count`)
+    - `src/db.py`: `data/history.db` videos 표 (uid, channel, style, topic, title, status, error, path, provider, case_id)
+    - 영상 코드(uid, 예: ja-6d079f)는 업로드 정보 설명란에 들어감 → 사용자가 유튜브 설명에 같이 붙여 넣기 → 8단계 매칭용
+    - `src/planner.py`: 채널 스타일을 번갈아 배정, AI 주제 후보 10개 (`templates/_topics.md` + style.yaml `topic_guide`), 핵심 단어 겹침(조사 제거)으로 중복 판정 (SIMILAR 0.65)
+    - case는 판례를 영상 만들 때 자동 선택, 쓴 판례는 DB/`data/used_cases.json`에 기록
+    - 실패한 영상은 기록 후 건너뜀. AuthExpired/DailyLimit이면 중단. 로그 `logs/<날짜>.log`
+    - 금지 주제 글자 검사는 주제·제목만 (대본 본문은 '성인 남성' 같은 오판 → AI 검토에 맡김)
+    - 6개 제작 약 15분 (영상당 3~5분), 하루 LLM 약 20회 예상 (agy 상한 40)

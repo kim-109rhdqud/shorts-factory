@@ -97,8 +97,9 @@ def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[s
     n = script_length(script)
     if not st["min_chars"] <= n <= st["max_chars"]:
         problems.append(f"대본 길이 {n}자 (공백 제외 {st['min_chars']}~{st['max_chars']}자여야 함)")
+    # 금지 주제는 주제·제목에서만 글자로 검사 (대본 본문은 '성인 남성' 같은 오판이 많아서 AI 검토에 맡김)
     for word in _banned(ch):
-        if word in topic or word in script:
+        if word in topic or word in str(data.get("title", "")):
             problems.append(f"금지 주제 단어 포함: {word}")
     if re.search(r"[()\[\]<>{}#*_~]|[\U0001F300-\U0001FAFF]", script):
         problems.append("대본에 괄호·특수기호·이모지가 있음 (TTS용이라 빼야 함)")
