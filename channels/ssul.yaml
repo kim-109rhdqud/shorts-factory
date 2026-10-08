@@ -8,7 +8,7 @@ speech_rate: "+30%"
 voice_pitch: "-4Hz"              # 다른 채널과 구분되게 살짝 낮은 톤
 daily_count: 2
 priority: 1                      # 숫자가 작을수록 먼저 제작 (구글 한도를 썰 채널이 먼저 쓰게)
-music_pools: [calm, mystery]
+music_pools: [km_calm]            # 2026-10-08 새 선곡
 subtitle:
   highlight_color: "#FF7EB6"     # 분홍
 youtube_channel_id: ""

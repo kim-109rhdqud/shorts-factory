@@ -17,3 +17,36 @@ pools:
     - Inspired
   mystery:     # 미스터리 (신기한 사실, 반전)
     - Investigations
+  km_bright:   # 잡학 한입: 밝고 그루브 (2026-10-08 선곡)
+    - "Disco con Tutti"
+    - "Chipper Doodle v2"
+    - "New Friendly"
+    - "Happy Alley"
+    - "Voxel Revolution"
+    - "Newer Wave"
+    - "Blippy Trance"
+    - "Fuzzball Parade"
+    - "Glitter Blast"
+    - "Pookatori and Friends"
+  km_energy:   # 순위 연구소: 빠르고 박진감 (2026-10-08 선곡)
+    - "Dentaneosuchus Hunt"
+    - "Sauropod Spotting"
+    - "Brain Dance"
+    - "Journey To Ascend"
+    - "Ethernight Club"
+    - "Big Drumming"
+    - "Realizer"
+    - "Raving Energy"
+    - "Rising Tide (faster)"
+    - "Laserpack"
+  km_calm:   # 오늘의 썰: 잔잔·편안 (2026-10-08 선곡)
+    - "Morning"
+    - "Evening"
+    - "Late Night Radio"
+    - "Ether Vox"
+    - "Night in Venice"
+    - "Study And Relax"
+    - "Limit 70"
+    - "Almost Bliss"
+    - "Past Sadness"
+    - "Smooth Lovin"

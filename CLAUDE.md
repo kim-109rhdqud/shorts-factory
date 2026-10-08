@@ -274,3 +274,6 @@ shorts-factory/
     - 그림 한도 감지: 우리 상한(`images.daily_limit`) 또는 agy 기록의 429 RESOURCE_EXHAUSTED → 그날 남은 썰 영상은 대본 쓰기 전에 바로 건너뜀
     - `daily.sh`는 인자를 그대로 `src.main`에 넘김 (`--channel`, `--count`)
   - 그림 생성 방식 검토 (2026-10-07): 이 서버(2GB, GPU 없음)에서 직접 돌리기는 불가. 상시 GPU 서버(월 15만~100만 원)는 과함 → Antigravity 유지 (사용자 결정). 한도 부족 시 순서: Google AI 크레딧 소량 → 서버리스 GPU(월 약 5천~1만 원)
+  - 배경음악 교체 (2026-10-08, 사용자 "음악이 별로"): 유튜브 오디오 보관함(직접 받기)은 사용자가 원치 않음. ccMixter는 자동 다운로드 차단(403), Openverse는 상업용 곡 거의 없음
+    - Kevin MacLeod 전체 목록(incompetech pieces.json, 1,443곡)에서 장르·분위기·최근 곡 기준으로 채널별 10곡 새로 선곡: km_bright(잡학), km_energy(랭킹), km_calm(썰)
+    - 드라이브 `test/music_preview/`에 채널별 미리듣기(곡마다 20초)와 곡 목록. 마음에 안 드는 곡은 sources.yaml에서 빼면 됨

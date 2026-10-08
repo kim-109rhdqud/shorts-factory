@@ -6,7 +6,7 @@ voice: ko-KR-InJoonNeural
 speech_rate: "+35%"
 voice_pitch: "+0Hz"
 daily_count: 2
-music_pools: [bright, mystery]   # AI가 이 안에서 고름
+music_pools: [km_bright]          # 2026-10-08 새 선곡
 subtitle:
   highlight_color: "#FFE400"     # 노랑
 youtube_channel_id: ""

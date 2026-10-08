@@ -5,7 +5,7 @@ voice: ko-KR-HyunsuMultilingualNeural
 speech_rate: "+35%"
 voice_pitch: "+0Hz"
 daily_count: 2
-music_pools: [bright]
+music_pools: [km_energy]          # 2026-10-08 새 선곡
 subtitle:
   highlight_color: "#4FD8FF"     # 하늘색
 youtube_channel_id: ""

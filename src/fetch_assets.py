@@ -7,6 +7,8 @@
 """
 import argparse
 import json
+import re
+import subprocess
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -45,6 +47,64 @@ def fetch_music() -> None:
             print(f"받는 중: {pool}/{title}")
             _download(src["base_url"] + urllib.parse.quote(f"{title}.mp3"), dest)
     print("음악 준비 완료")
+
+
+CCMIXTER_API = "https://ccmixter.org/api/query"
+NOT_INSTRUMENTAL = ("vocal", "singing", "rap", "spoken", "lyrics", "acapella", "voice")
+
+
+def _ccmixter_query(tag: str, limit: int = 40, tries: int = 3) -> list[dict]:
+    import time
+    params = urllib.parse.urlencode({"f": "json", "tags": f"{tag},instrumental", "lic": "by",
+                                     "sort": "rank", "limit": limit})
+    for i in range(tries):  # ccMixter 응답 머리말이 너무 길어 urllib이 못 읽음 → curl 사용
+        try:
+            out = subprocess.run(["curl", "-s", "-m", "120", f"{CCMIXTER_API}?{params}"],
+                                 capture_output=True, text=True, check=True)
+            return json.loads(out.stdout)
+        except Exception as e:
+            print(f"ccMixter '{tag}' 재시도 {i + 1}: {e}")
+            time.sleep(5 * (i + 1))
+    return []
+
+
+def _seconds(track: dict) -> int:
+    ps = (track.get("files") or [{}])[0].get("file_format_info", {}).get("ps", "0:00")
+    try:
+        m, s = ps.split(":")[-2:]
+        return int(m) * 60 + int(s)
+    except ValueError:
+        return 0
+
+
+def fetch_ccmixter() -> None:
+    """ccMixter 인기 연주곡을 분위기별 풀로 받는다 (곡별 출처를 _meta.json에 기록)."""
+    import time
+    cfg = music_sources()["ccmixter"]
+    for pool, tags in cfg["pools"].items():
+        folder = MUSIC_DIR / pool
+        folder.mkdir(parents=True, exist_ok=True)
+        meta_file = folder / "_meta.json"
+        meta = json.loads(meta_file.read_text()) if meta_file.exists() else {}
+        artists = {m["artist"] for m in meta.values()}
+        for tag in tags:
+            if len(meta) >= cfg["per_pool"]:
+                break
+            for t in _ccmixter_query(tag):
+                tags_text = (t.get("upload_tags") or "").lower()
+                url = ((t.get("files") or [{}])[0]).get("download_url", "")
+                if (len(meta) >= cfg["per_pool"] or not url.endswith(".mp3") or t["user_name"] in artists
+                        or _seconds(t) < cfg["min_seconds"] or any(b in tags_text for b in NOT_INSTRUMENTAL)):
+                    continue
+                name = re.sub(r"[^\w\- ]+", "", f"{t['user_name']} - {t['upload_name']}")[:80].strip() + ".mp3"
+                print(f"받는 중: {pool}/{name}")
+                subprocess.run(["curl", "-s", "-L", "-m", "300", "-o", str(folder / name), url], check=True)
+                meta[name] = {"title": t["upload_name"], "artist": t["user_name"], "page": t.get("file_page_url", ""),
+                              "license": t.get("license_name", "Attribution"), "license_url": t.get("license_url", "")}
+                artists.add(t["user_name"])
+                meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+            time.sleep(2)
+        print(f"{pool}: {len(meta)}곡")
 
 
 def _pixabay_search(query: str) -> list[dict]:
@@ -167,11 +227,13 @@ def search_clip(query: str, rng=None) -> Path | None:
 
 def main():
     ap = argparse.ArgumentParser(description="무료 소스 내려받기")
-    ap.add_argument("kind", choices=["music", "backgrounds"])
+    ap.add_argument("kind", choices=["music", "ccmixter", "backgrounds"])
     ap.add_argument("--pool", help="배경 풀 하나만")
     args = ap.parse_args()
     if args.kind == "music":
         fetch_music()
+    elif args.kind == "ccmixter":
+        fetch_ccmixter()
     else:
         fetch_backgrounds(args.pool)
 
