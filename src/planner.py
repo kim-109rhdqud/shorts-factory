@@ -66,16 +66,12 @@ def is_duplicate(topic: str, others: list[str]) -> str | None:
 
 
 def assign_styles(ch: dict, count: int) -> list[str]:
-    """스타일 배정: 최근 7일 동안 덜 만든 스타일부터 (하루 여러 번 나눠 돌려도 번갈아 나오게).
-    같으면 채널 설정에 적힌 순서대로."""
+    """스타일 배정: 한 번 실행에서 스타일을 골고루 (썰 채널 2개 = story 1 + case 1).
+    개수가 스타일 수로 나눠떨어지지 않을 때만 최근 7일 동안 덜 만든 스타일을 먼저."""
+    styles = ch["styles"]
     recent = db.style_counts(ch["id"], days=7)
-    counts = {s: recent.get(s, 0) for s in ch["styles"]}
-    order = []
-    for _ in range(count):
-        style = min(ch["styles"], key=lambda s: (counts[s], ch["styles"].index(s)))
-        order.append(style)
-        counts[style] += 1
-    return order
+    order = sorted(styles, key=lambda s: (recent.get(s, 0), styles.index(s)))  # 덜 만든 것부터
+    return [order[i % len(order)] for i in range(count)]
 
 
 def suggest_topics(ch: dict, style: str, n: int) -> list[str]:
