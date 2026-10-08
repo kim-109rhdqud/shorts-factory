@@ -61,7 +61,7 @@ llm:
   timeout_sec: 240
   retries: 2                 # 프로그램마다 재시도 횟수
   min_interval_sec: 5        # 호출 사이 최소 간격
-  daily_limit: {agy: 150, claude: 15}  # 2026-10-08 대본 개선 기간: 사용자 허락으로 상향 (평소 agy 40)
+  daily_limit: {agy: 40, claude: 10}
   sandbox: ~/.local/share/shorts-factory/llm_sandbox  # AI가 실행되는 빈 폴더 (프로젝트 밖: CLAUDE.md 등을 읽지 않게)
   usage_file: data/llm_usage.json
 

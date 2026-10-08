@@ -32,17 +32,38 @@ def required_keys(st: dict) -> tuple[str, ...]:
     return BASE_KEYS + (("segments",) if st.get("segmented") else ("script",)) + tuple(st.get("extra_keys", []))
 
 
+# 세는 말 앞 작은 수는 고유어로 읽어야 자연스럽다 (TTS가 "7개"를 "칠 개"로 읽는 문제)
+COUNTERS = "개|명|마리|살|번|시간|가지|잔|켤레|권|장|송이|채|그루|군데|달"
+_ONES = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉"]
+_TENS = ["", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔"]
+
+
+def native_number(n: int) -> str:
+    """1~99 → 세는 말 앞 고유어 (20 → 스무, 21 → 스물한)."""
+    if n == 20:
+        return "스무"
+    return _TENS[n // 10] + _ONES[n % 10]
+
+
+def fix_counters(text: str) -> str:
+    """'7개' → '일곱 개', '17살' → '열일곱 살'. 1~99만 (큰 수, 소수점, 쉼표 숫자는 그대로)."""
+    def repl(m):
+        n = int(m.group(1))
+        return f"{native_number(n)} {m.group(2)}" if 1 <= n <= 99 else m.group(0)
+    return re.sub(rf"(?<![\d.,])(\d{{1,2}})\s?({COUNTERS})(?![가-힣]*일)", repl, text)
+
+
 def normalize(data: dict, st: dict) -> None:
     """스타일과 상관없이 data["segments"]와 data["script"](전체 대본 한 줄)를 갖추게 한다."""
     if st.get("segmented"):
         segs = [x for x in data.get("segments", []) if isinstance(x, dict) and str(x.get("text", "")).strip()]
         for x in segs:
-            x["text"] = x["text"].strip()
+            x["text"] = fix_counters(" ".join(x["text"].split()))
             x.setdefault("label", "")
         data["segments"] = segs
         data["script"] = " ".join(x["text"] for x in segs)
     else:
-        data["script"] = str(data.get("script", "")).strip()
+        data["script"] = fix_counters(" ".join(str(data.get("script", "")).split()))
         data["segments"] = [{"label": "", "text": data["script"]}] if data["script"] else []
 
 
@@ -105,6 +126,12 @@ def style_problems(script: str, checks: dict) -> list[str]:
     haeyo = sum(bool(re.search(r"(해요|예요|이에요|어요|아요|워요|돼요|세요)[.!?]?$", x)) for x in sents) / n
     if haeyo > checks.get("max_haeyo_ratio", 1):
         problems.append(f"'~해요' 끝맺음이 {haeyo:.0%} (쓰지 않기)")
+    first = sents[0]
+    if len(first) > checks.get("max_first_sentence", 999):
+        problems.append(f"첫 문장이 너무 김 ({len(first)}자, {checks['max_first_sentence']}자 이하로. 상황 하나만)")
+    jargon = [w for w in checks.get("jargon", []) if w in script]
+    if jargon:
+        problems.append(f"어려운 법률 용어: {', '.join(jargon)} → 쉬운 말로 (예: 수인한도 → 참고 지낼 수 있는 정도)")
     used = [w for w in checks.get("banned_words", []) if w in script]
     if used:
         problems.append(f"금지 표현 사용: {', '.join(used)}")
@@ -127,19 +154,20 @@ def _money(text: str) -> list[int]:
     return out
 
 
-def money_problems(data: dict, source_verdict: str) -> list[str]:
-    """판결 구간(label 있음)의 요약(item)과 본문 금액이 실제 주문 금액과 맞는지 (2% 오차 허용)."""
-    allowed = _money(source_verdict)
-    if not allowed:
+def money_problems(data: dict, source: str) -> list[str]:
+    """대본에 나온 금액이 판결문 어디에도 없으면 지어낸 것으로 본다 (2% 오차 허용).
+    (1심·2심 금액을 합친 경우처럼 주문에 그대로 없는 정당한 금액도 있어서, 원문 전체와 비교 + 합계 허용)"""
+    found = _money(source)
+    if not found:
         return []
+    sums = {a + b for a in found for b in found}
+    allowed = list(set(found) | sums)
     bad = []
     for seg in data.get("segments", []):
-        if not seg.get("label"):
-            continue
-        for v in _money(str(seg.get("item", ""))):
-            if not any(abs(v - a) <= a * 0.02 for a in allowed):
+        for v in _money(str(seg.get("item", "")) + " " + seg.get("text", "")):
+            if v >= 10000 and not any(abs(v - a) <= max(a * 0.03, 10000) for a in allowed):
                 bad.append(f"{v:,}원")
-    return [f"판결 요약 금액 {', '.join(bad)}이 실제 판결(주문)에 없음 → 주문의 금액으로"] if bad else []
+    return [f"판결문에 없는 금액: {', '.join(dict.fromkeys(bad))} → 판결문 금액으로"] if bad else []
 
 
 def validate(data: dict, topic: str, st: dict, ch: dict | None = None, source: str = "") -> list[str]:
@@ -169,9 +197,8 @@ def validate(data: dict, topic: str, st: dict, ch: dict | None = None, source: s
         problems.append("첫 문장이 인사·소개로 시작함 (바로 훅으로 시작해야 함)")
     if st.get("style_checks"):
         problems += style_problems(script, st["style_checks"])
-    if source and "[★ 최종 결과 = 주문" in source:
-        verdict_text = source.split("[★ 최종 결과 = 주문", 1)[1].split("[원고가 요구한 것", 1)[0]
-        problems += money_problems(data, verdict_text)
+    if source:
+        problems += money_problems(data, source)
     if st.get("labels"):
         labeled = [x for x in data["segments"] if x.get("label")]
         if [x["label"] for x in labeled] != st["labels"]:
@@ -212,6 +239,11 @@ def review(data: dict, ch: dict | None = None) -> dict:
         text, provider = llm.generate(prompt, st.get("agy_model"))
         fixed = extract_json(text)
         problems = validate(fixed, data["topic"], st, ch, data.get("source_text", ""))
+        # 사실·금액 같은 중요한 문제가 없고, 다듬기 문제가 원래보다 늘지 않았으면 검토 결과를 쓴다
+        before = [x for x in validate(dict(data), data["topic"], st, ch, data.get("source_text", ""))]
+        if problems and all(_is_soft(x, st) for x in problems) and len(problems) <= len(before):
+            fixed["warnings"] = problems
+            problems = []
     except (ValueError, llm.LLMError) as e:
         problems = [str(e)]
     if not problems and _first_sentence(fixed.get("script", "")) != _first_sentence(data["script"]):
@@ -219,8 +251,20 @@ def review(data: dict, ch: dict | None = None) -> dict:
     if problems:
         log.warning("검토 결과 사용 안 함 (원래 대본 유지): %s", "; ".join(problems))
         return data
-    keep = required_keys(st) + ("script", "segments")
+    keep = required_keys(st) + ("script", "segments") + (("warnings",) if "warnings" in fixed else ())
     return {**data, **{k: fixed[k] for k in keep}, "reviewed_by": provider, "draft_script": data["script"]}
+
+
+# 다듬기 문제: 마지막 시도까지 남아 있으면 경고만 남기고 통과 (사실·금액·형식 문제는 끝까지 실패)
+SOFT_PROBLEMS = ("문장이 너무 김", "첫 문장이 너무 김", "어려운 법률 용어", "질문 문장", "'~습니다' 끝맺음",
+                 "'~해요' 끝맺음", "숫자가 적음", "세는 말 앞 작은 수")
+
+
+def _is_soft(problem: str, st: dict) -> bool:
+    if problem.startswith(SOFT_PROBLEMS):
+        return True
+    m = re.match(r"대본 길이 (\d+)자", problem)  # 글자 수가 범위에서 10% 이내로 벗어난 건 다듬기
+    return bool(m) and st["min_chars"] * 0.9 <= int(m.group(1)) <= st["max_chars"] * 1.1
 
 
 def generate(topic: str, style: str = "trivia", ch: dict | None = None, source: dict | None = None) -> dict:
@@ -236,6 +280,11 @@ def generate(topic: str, style: str = "trivia", ch: dict | None = None, source: 
             problems = validate(data, topic, st, ch, source["text"] if source else "")
         except ValueError as e:
             data, problems = None, [f"JSON 형식 오류: {e}"]
+        last = attempt == config.load()["script"]["max_attempts"]
+        if problems and data and last and all(_is_soft(x, st) for x in problems):
+            log.warning("다듬기 문제만 남아 통과: %s", "; ".join(problems))
+            data["warnings"] = problems
+            problems = []
         if not problems:
             data.update(topic=topic, style=style, provider=provider, attempts=attempt)
             if source:

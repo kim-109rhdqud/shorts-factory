@@ -107,7 +107,7 @@ def make_from_topic(topic: str | None, channel: str, style: str | None = None, u
         print("0/5 판례 고르는 중...")
         case = cases.pick()
         topic = topic or f"{case['name']}: {(case['summary'] or case['gist'])[:200]}"
-        source = {"text": cases.source_text(case), "info": {"court": case["court"], "case_no": case["case_no"]}}
+        source = {"text": cases.writing_source(case), "info": {"court": case["court"], "case_no": case["case_no"]}}
         print(f"    판례: {case['court']} {case['case_no']} ({case['keyword']})")
         result["case_id"] = case["id"]
     if not topic:

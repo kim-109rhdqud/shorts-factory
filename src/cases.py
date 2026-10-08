@@ -118,6 +118,44 @@ def source_text(case: dict) -> str:
             f"{case['body'][:7000]}")
 
 
+FACTS_DIR = config.path("data/case_facts")
+
+
+def fact_sheet(case: dict) -> dict:
+    """판결문 → 검증된 사실 목록 (AI 1회, 판례마다 한 번만 만들고 저장).
+    목록의 금액이 판결문에 실제로 있는지 프로그램이 확인하고, 틀리면 다시 만든다."""
+    f = FACTS_DIR / f"{case['id']}.json"
+    if f.exists():
+        return json.loads(f.read_text(encoding="utf-8"))
+    template = (config.path(config.load()["script"]["template_dir"]) / "case" / "facts.md").read_text(encoding="utf-8")
+    raw = source_text(case)
+    prompt = template.format(source_text=raw)
+    for attempt in range(3):
+        text, _ = llm.generate(prompt)
+        try:
+            facts = script.extract_json(text)
+        except ValueError:
+            continue
+        wrong = script.money_problems({"segments": [{"text": json.dumps(facts, ensure_ascii=False)}]}, raw)
+        if not wrong:
+            FACTS_DIR.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(facts, ensure_ascii=False, indent=1), encoding="utf-8")
+            return facts
+        log.warning("사실 목록 금액 오류, 다시: %s", wrong)
+        prompt = template.format(source_text=raw) + "\n\n# 이전 목록의 문제\n- " + "\n- ".join(wrong)
+    raise RuntimeError(f"사실 목록을 만들지 못함: {case['case_no']}")
+
+
+def writing_source(case: dict) -> str:
+    """대본 작성용 원자료 = 검증된 사실 목록 (+ 참고용 판결문 앞부분)."""
+    facts = fact_sheet(case)
+    return (f"법원: {case['court']} / 사건번호: {case['case_no']} / 선고일: {case['date']}\n"
+            "[★ 검증된 사실 목록. 대본의 모든 사실·숫자·이유는 이 목록에서만 가져온다. 바꿔 말하지 말 것]\n"
+            f"{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
+            f"[★ 최종 결과 = 주문]\n{verdict(case)}\n"
+            f"[참고: 판결문 앞부분 (사실 목록과 다르면 목록을 따른다)]\n{case['body'][:2500]}")
+
+
 def pick(rng: random.Random | None = None, tries: int = 8) -> dict:
     """아직 안 쓴 생활 분쟁 판례 하나를 고른다 (AI가 후보 중 가장 공감되는 것 선택)."""
     rng = rng or random.Random()

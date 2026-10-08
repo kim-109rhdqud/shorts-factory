@@ -1,6 +1,6 @@
 name: 오늘의 썰              # 가칭
 active: true
-styles: [story, case]          # AI 창작 썰 + 실제 판결 썰 (하루 1개씩)
+styles: [case]                 # 2026-10-08 판례만 (사용자 결정). AI 썰(story)은 중지
 language: ko
 voices:                          # 화자 성별 → 목소리 (썰 스타일)
   female: ko-KR-SunHiNeural
@@ -16,5 +16,6 @@ youtube_channel_id: ""
 banned_topics: []
 scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
   enabled: true
+  max_scenes: 5                  # 판례 대본 구조(장면 5개)에 맞춤. 하루 2개 × 5장 = 10장 (그림 한도)
   required: true                 # 그림을 못 그리면(한도 등) 무료 영상으로 대신하지 말고 이 영상은 건너뜀
   art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"
