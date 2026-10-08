@@ -111,7 +111,38 @@ def style_problems(script: str, checks: dict) -> list[str]:
     return problems
 
 
-def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[str]:
+def _money(text: str) -> list[int]:
+    """'129만 원', '1,290,000원', '250만', '8억 3천만 원' 같은 금액 → 원 단위 정수들."""
+    out = []
+    for m in re.finditer(r"(\d[\d,]*)\s*억(?:\s*(\d[\d,]*)\s*천)?(?:\s*(\d[\d,]*)\s*만)?\s*원?"
+                         r"|(\d[\d,]*)\s*만\s*(\d[\d,]*)?\s*원?|(\d{1,3}(?:,\d{3})+|\d{5,})\s*원", text):
+        g = [x.replace(",", "") if x else None for x in m.groups()]
+        if g[0]:
+            v = int(g[0]) * 10 ** 8 + (int(g[1]) * 10 ** 7 if g[1] else 0) + (int(g[2]) * 10 ** 4 if g[2] else 0)
+        elif g[3]:
+            v = int(g[3]) * 10 ** 4 + (int(g[4]) if g[4] else 0)
+        else:
+            v = int(g[5])
+        out.append(v)
+    return out
+
+
+def money_problems(data: dict, source_verdict: str) -> list[str]:
+    """판결 구간(label 있음)의 요약(item)과 본문 금액이 실제 주문 금액과 맞는지 (2% 오차 허용)."""
+    allowed = _money(source_verdict)
+    if not allowed:
+        return []
+    bad = []
+    for seg in data.get("segments", []):
+        if not seg.get("label"):
+            continue
+        for v in _money(str(seg.get("item", ""))):
+            if not any(abs(v - a) <= a * 0.02 for a in allowed):
+                bad.append(f"{v:,}원")
+    return [f"판결 요약 금액 {', '.join(bad)}이 실제 판결(주문)에 없음 → 주문의 금액으로"] if bad else []
+
+
+def validate(data: dict, topic: str, st: dict, ch: dict | None = None, source: str = "") -> list[str]:
     """문제 목록 (비어 있으면 통과). data는 normalize 된다."""
     bg_pools, music_pools = _pools(ch)
     problems = [f"'{k}' 항목 없음" for k in required_keys(st) if k not in data]
@@ -138,6 +169,9 @@ def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[s
         problems.append("첫 문장이 인사·소개로 시작함 (바로 훅으로 시작해야 함)")
     if st.get("style_checks"):
         problems += style_problems(script, st["style_checks"])
+    if source and "[★ 최종 결과 = 주문" in source:
+        verdict_text = source.split("[★ 최종 결과 = 주문", 1)[1].split("[원고가 요구한 것", 1)[0]
+        problems += money_problems(data, verdict_text)
     if st.get("labels"):
         labeled = [x for x in data["segments"] if x.get("label")]
         if [x["label"] for x in labeled] != st["labels"]:
@@ -177,7 +211,7 @@ def review(data: dict, ch: dict | None = None) -> dict:
     try:
         text, provider = llm.generate(prompt, st.get("agy_model"))
         fixed = extract_json(text)
-        problems = validate(fixed, data["topic"], st, ch)
+        problems = validate(fixed, data["topic"], st, ch, data.get("source_text", ""))
     except (ValueError, llm.LLMError) as e:
         problems = [str(e)]
     if not problems and _first_sentence(fixed.get("script", "")) != _first_sentence(data["script"]):
@@ -199,7 +233,7 @@ def generate(topic: str, style: str = "trivia", ch: dict | None = None, source: 
         text, provider = llm.generate(prompt, st.get("agy_model"))
         try:
             data = extract_json(text)
-            problems = validate(data, topic, st, ch)
+            problems = validate(data, topic, st, ch, source["text"] if source else "")
         except ValueError as e:
             data, problems = None, [f"JSON 형식 오류: {e}"]
         if not problems:

@@ -91,10 +91,31 @@ def mark_used(case_id: str) -> None:
     USED_FILE.write_text(json.dumps(sorted(ids)))
 
 
+def _section(body: str, name: str, stop: tuple[str, ...]) -> str:
+    """판결문에서 【이름...】 다음부터 다음 【(stop 중 하나)...】 표시 전까지. 예) 【청구취지 및 항소취지】"""
+    head = r"\s*".join(name)
+    m = re.search(r"【\s*" + head + r"[^】]*】(.*?)(?=【\s*(?:" + "|".join(stop) + r")|$)", body, re.S)
+    return re.sub(r"\s+", " ", m.group(1)).strip()[:600] if m else ""
+
+
+def verdict(case: dict) -> str:
+    """주문 (법원이 실제로 내린 결론)."""
+    return _section(case["body"], "주문", (r"청\s*구", r"이\s*유", r"항\s*소", r"상\s*고", r"신\s*청"))
+
+
+def claims(case: dict) -> str:
+    """청구취지 (원고가 요구한 것. 결과가 아님). 항소심은 '청구취지 및 항소취지'."""
+    return _section(case["body"], "청구취지", (r"이\s*유",))
+
+
 def source_text(case: dict) -> str:
-    """대본 작성용 원자료 (너무 길면 앞부분만)."""
+    """대본 작성용 원자료. 실제 결과(주문)와 요구한 것(청구취지)을 맨 위에 따로 표시해 헷갈리지 않게."""
     return (f"법원: {case['court']} / 사건번호: {case['case_no']} / 사건명: {case['name']} / 선고일: {case['date']}\n"
-            f"[판시사항] {case['summary']}\n[판결요지] {case['gist']}\n[판결문 본문]\n{case['body'][:7000]}")
+            f"[★ 최종 결과 = 주문. 판결 결과와 금액은 오직 여기서만 가져온다]\n{verdict(case) or '(본문에서 확인)'}\n"
+            f"[원고가 요구한 것 = 청구취지. 이건 결과가 아니다]\n{claims(case) or '(없음)'}\n"
+            f"[판시사항] {case['summary']}\n[판결요지] {case['gist']}\n"
+            "[판결문 본문] ('주장', '항변'은 당사자 주장일 뿐 법원 판단이 아니다. 법원 판단은 '판단', '살피건대' 이후)\n"
+            f"{case['body'][:7000]}")
 
 
 def pick(rng: random.Random | None = None, tries: int = 8) -> dict:
