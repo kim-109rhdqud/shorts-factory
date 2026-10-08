@@ -1,0 +1,20 @@
+name: 판례 테스트             # 새 대본 방식 테스트용 (자동 실행 안 됨)
+active: false
+styles: [case]
+language: ko
+voices:                          # 화자 성별 → 목소리 (썰 스타일)
+  female: ko-KR-SunHiNeural
+  male: ko-KR-InJoonNeural
+speech_rate: "+30%"
+voice_pitch: "-4Hz"              # 다른 채널과 구분되게 살짝 낮은 톤
+daily_count: 2
+priority: 1                      # 숫자가 작을수록 먼저 제작 (구글 한도를 썰 채널이 먼저 쓰게)
+music_pools: [km_calm]            # 2026-10-08 새 선곡
+subtitle:
+  highlight_color: "#FF7EB6"     # 분홍
+youtube_channel_id: ""
+banned_topics: []
+scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
+  enabled: false                 # 테스트: 그림 대신 무료 영상
+  required: false
+  art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"

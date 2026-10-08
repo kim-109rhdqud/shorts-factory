@@ -84,6 +84,33 @@ def script_length(script: str) -> int:
     return len(re.sub(r"\s", "", script))
 
 
+def style_problems(script: str, checks: dict) -> list[str]:
+    """AI 티 검사: 문장 길이, 끝맺음, 질문 수, 숫자 밀도, 금지 표현 (style.yaml style_checks)."""
+    sents = [x.strip() for x in re.split(r"(?<=[.?!])\s+", script) if len(x.strip()) > 2]
+    if not sents:
+        return []
+    n, problems = len(sents), []
+    avg = sum(len(x) for x in sents) / n
+    if avg > checks.get("max_avg_sentence", 999):
+        problems.append(f"문장이 너무 김 (평균 {avg:.0f}자, {checks['max_avg_sentence']}자 이하로 짧게 끊기)")
+    q = sum(x.endswith("?") for x in sents)
+    if q > checks.get("max_questions", 99):
+        problems.append(f"질문 문장 {q}개 (반론 질문 하나만 남기기)")
+    nums = len(re.findall(r"\d[\d,.]*", script)) * 1000 / max(1, len(script))
+    if nums < checks.get("min_numbers_per_1000", 0):
+        problems.append(f"숫자가 적음 (1000자당 {nums:.1f}개, 판결문의 날짜·금액·기간을 더 넣기)")
+    formal = sum(bool(re.search(r"니다[.!?]?$", x)) for x in sents) / n
+    if formal < checks.get("min_formal_ratio", 0):
+        problems.append(f"'~습니다' 끝맺음이 {formal:.0%}뿐 (절반 가까이로)")
+    haeyo = sum(bool(re.search(r"(해요|예요|이에요|어요|아요|워요|돼요|세요)[.!?]?$", x)) for x in sents) / n
+    if haeyo > checks.get("max_haeyo_ratio", 1):
+        problems.append(f"'~해요' 끝맺음이 {haeyo:.0%} (쓰지 않기)")
+    used = [w for w in checks.get("banned_words", []) if w in script]
+    if used:
+        problems.append(f"금지 표현 사용: {', '.join(used)}")
+    return problems
+
+
 def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[str]:
     """문제 목록 (비어 있으면 통과). data는 normalize 된다."""
     bg_pools, music_pools = _pools(ch)
@@ -109,6 +136,8 @@ def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[s
         problems.append(f"세는 말 앞 작은 수를 숫자로 씀 ({examples}) → '세 개'처럼 한글로")
     if script.startswith(("안녕하세요", "오늘은", "여러분")):
         problems.append("첫 문장이 인사·소개로 시작함 (바로 훅으로 시작해야 함)")
+    if st.get("style_checks"):
+        problems += style_problems(script, st["style_checks"])
     if st.get("labels"):
         labeled = [x for x in data["segments"] if x.get("label")]
         if [x["label"] for x in labeled] != st["labels"]:
@@ -126,6 +155,10 @@ def validate(data: dict, topic: str, st: dict, ch: dict | None = None) -> list[s
     if not isinstance(data["hashtags"], list) or not isinstance(data["fact_check"], list):
         problems.append("hashtags와 fact_check는 목록이어야 함")
     return problems
+
+
+def _first_sentence(text: str) -> str:
+    return re.sub(r"\s+", "", re.split(r"(?<=[.?!])\s", text.strip(), maxsplit=1)[0])
 
 
 def review(data: dict, ch: dict | None = None) -> dict:
@@ -147,6 +180,8 @@ def review(data: dict, ch: dict | None = None) -> dict:
         problems = validate(fixed, data["topic"], st, ch)
     except (ValueError, llm.LLMError) as e:
         problems = [str(e)]
+    if not problems and _first_sentence(fixed.get("script", "")) != _first_sentence(data["script"]):
+        problems = ["검토가 첫 문장(훅)을 바꿈"]  # 훅은 검토에서 손대지 못하게
     if problems:
         log.warning("검토 결과 사용 안 함 (원래 대본 유지): %s", "; ".join(problems))
         return data
