@@ -1,4 +1,5 @@
 # 채널 하나 = 파일 하나. 파일 이름(japhak)이 채널 ID (폴더 이름으로 쓰임)
+active: false                    # 2026-10-08 중지 (판례 채널에 집중). 다시 켜려면 true
 name: 잡학 한입              # 가칭
 styles: [trivia]             # 이 채널이 만드는 스타일 (templates 아래 폴더)
 language: ko

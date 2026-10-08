@@ -277,3 +277,4 @@ shorts-factory/
   - 배경음악 교체 (2026-10-08, 사용자 "음악이 별로"): 유튜브 오디오 보관함(직접 받기)은 사용자가 원치 않음. ccMixter는 자동 다운로드 차단(403), Openverse는 상업용 곡 거의 없음
     - Kevin MacLeod 전체 목록(incompetech pieces.json, 1,443곡)에서 장르·분위기·최근 곡 기준으로 채널별 10곡 새로 선곡: km_bright(잡학), km_energy(랭킹), km_calm(썰)
     - 드라이브 `test/music_preview/`에 채널별 미리듣기(곡마다 20초)와 곡 목록. 마음에 안 드는 곡은 sources.yaml에서 빼면 됨
+  - 운영 방향 변경 (2026-10-08, 사용자 결정): 판례 채널(ssul, 오늘의 썰) 하나만 운영하고 발전시키기. 잡학·랭킹은 `active: false`로 중지 (16:00 cron 주석 처리). 다시 켜려면 active: true + crontab 주석 해제

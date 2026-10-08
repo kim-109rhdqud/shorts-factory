@@ -1,5 +1,5 @@
 # shorts-factory (한국 시간)
-# 04:00 썰 채널 2개 (구글 그림 한도를 먼저 쓰게)
+# 04:00 판례 채널(오늘의 썰) 2개
 0 4 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel ssul --count 2
-# 16:00 잡학 한입 2개 + 순위 연구소 2개
-0 16 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel japhak --channel ranklab --count 2
+# 16:00 잡학 한입 2개 + 순위 연구소 2개 — 2026-10-08 중지
+# 0 16 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel japhak --channel ranklab --count 2

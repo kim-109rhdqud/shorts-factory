@@ -1,4 +1,5 @@
 name: 순위 연구소            # 가칭
+active: false                    # 2026-10-08 중지 (판례 채널에 집중). 다시 켜려면 true
 styles: [ranking]
 language: ko
 voice: ko-KR-HyunsuMultilingualNeural

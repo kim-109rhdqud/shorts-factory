@@ -14,9 +14,11 @@ from src import config
 CHANNEL_DIR = config.path("channels")
 
 
-def list_ids() -> list[str]:
-    """채널 ID 목록. priority가 작은 채널부터 (없으면 9), 같으면 이름순."""
+def list_ids(include_inactive: bool = False) -> list[str]:
+    """채널 ID 목록. priority가 작은 채널부터 (없으면 9), 같으면 이름순. active: false인 채널은 뺌."""
     ids = sorted(p.stem for p in CHANNEL_DIR.glob("*.yaml"))
+    if not include_inactive:
+        ids = [c for c in ids if load(c).get("active", True)]
     return sorted(ids, key=lambda c: load(c).get("priority", 9))
 
 
