@@ -98,6 +98,24 @@ def fact_fix(text: str, facts: dict, scenes: list[dict], source: str, tries: int
     raise RuntimeError("사실 확인 실패 (금액 또는 문장부호)")
 
 
+def notation(segments: list[dict]) -> list[dict]:
+    """마지막 표기 정리: 한글로 풀어 쓴 숫자 → 아라비아 숫자, 소리 나는 대로 쓴 영어 → 원래 표기 (BMW).
+    내용은 바꾸지 않는다. 글자 수가 크게 달라지면 내용이 바뀐 것으로 보고 원래 것을 쓴다."""
+    story, verdict = segments[0]["text"], segments[1]["text"]
+    try:
+        out = script.extract_json(llm.generate(_template("_notation.md").format(story=story, verdict=verdict))[0])
+    except (ValueError, llm.LLMError) as e:
+        log.warning("표기 정리 실패, 원래 대본 사용: %s", e)
+        return segments
+    new = [dict(segments[0], text=" ".join(out.get("story", "").split())),
+           dict(segments[1], text=" ".join(out.get("verdict", "").split()))]
+    for old, nw in zip(segments, new):  # 숫자로 바뀌면 짧아지는 게 정상. 지나치게 짧거나 길면 내용이 바뀐 것
+        if not nw["text"] or not 0.6 <= len(nw["text"]) / max(1, len(old["text"])) <= 1.1:
+            log.warning("표기 정리 결과 길이가 이상해서 원래 대본 사용")
+            return segments
+    return [dict(x, text=script.fix_counters(x["text"])) for x in new]
+
+
 def polish(data: dict, facts: dict, source: str, cfg: dict) -> dict:
     """초안 data → 다듬은 data (segments, script, scenes의 from, 기록 polish_log 갱신)."""
     model, rounds = cfg["model"], cfg.get("max_rounds", 2)
@@ -115,6 +133,7 @@ def polish(data: dict, facts: dict, source: str, cfg: dict) -> dict:
     else:
         logs.append({"final_critique": critique})
     fixed = fact_fix(text, facts, data.get("scenes", []), source)
+    fixed["segments"] = notation(fixed["segments"])
     scenes = data.get("scenes", [])
     for sc, anchor in zip(scenes, fixed["scene_from"]):
         sc["from"] = anchor

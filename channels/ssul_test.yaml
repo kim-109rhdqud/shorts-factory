@@ -15,7 +15,7 @@ subtitle:
 youtube_channel_id: ""
 banned_topics: []
 scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
-  enabled: true                  # 완성 영상 테스트: AI 그림 사용
-  required: true
+  enabled: false                 # 테스트: 그림 없이 무료 영상 배경
+  required: false
   max_scenes: 5
   art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"
