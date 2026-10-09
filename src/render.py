@@ -5,6 +5,7 @@
 """
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 from src import background, config
@@ -44,7 +45,7 @@ def render(audio: Path, ass: Path, out_path: Path, bg: Path | None = None,
     music_input = ["-stream_loop", "-1", "-i", str(music.resolve())] if music else []
     # ass 필터는 경로 특수문자 처리가 까다로워서, 자막 폴더에서 파일명만으로 실행
     subprocess.run([
-        config.tool("ffmpeg"), "-y", "-loglevel", "error", "-stats",
+        config.tool("ffmpeg"), "-y", "-loglevel", "error", "-stats" if sys.stderr.isatty() else "-nostats",
         *bg_input, "-i", str(audio.resolve()), *music_input,
         "-filter_complex", f"[0:v]ass={ass.name}:fontsdir={font_dir}[v];{_audio_filter(duration, tail, bool(music))}",
         "-map", "[v]", "-map", "[a]", "-t", f"{duration:.3f}",

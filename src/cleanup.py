@@ -28,7 +28,8 @@ def on_drive(folder: Path) -> bool:
     """폴더의 파일이 드라이브에 전부 (같은 크기로) 있는지."""
     out_root = config.path(config.load()["paths"]["output"])
     remote = f"{config.load()['drive']['remote']}/{folder.resolve().relative_to(out_root).as_posix()}"
-    r = subprocess.run([config.tool("rclone"), "check", str(folder), remote, "--one-way", "--size-only"],
+    r = subprocess.run([config.tool("rclone"), "check", str(folder), remote, "--one-way", "--size-only",
+                        "--exclude", "*_project/**"],
                        capture_output=True, text=True)
     return r.returncode == 0
 

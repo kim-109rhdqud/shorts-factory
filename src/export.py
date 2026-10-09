@@ -40,7 +40,8 @@ def upload(folder: Path) -> str:
     """output 기준 같은 경로로 드라이브에 복사. 드라이브 경로를 돌려준다."""
     out_root = config.path(config.load()["paths"]["output"])
     remote = f"{config.load()['drive']['remote']}/{folder.resolve().relative_to(out_root).as_posix()}"
-    subprocess.run([config.tool("rclone"), "copy", str(folder), remote, "--exclude", "_work/**"], check=True)
+    subprocess.run([config.tool("rclone"), "copy", str(folder), remote, "--exclude", "_work/**",
+                    "--exclude", "*_project/**"], check=True)  # 재료 폴더는 서버에만 (대본 문서는 따로 올림)
     return remote
 
 

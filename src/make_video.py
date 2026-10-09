@@ -18,7 +18,7 @@ import random
 import shutil
 from pathlib import Path
 
-from src import background, cases, channels, config, export, images, music, render, script, subtitle, tts
+from src import background, cases, channels, config, edits, export, images, music, render, script, subtitle, tts
 
 log = logging.getLogger("make_video")
 
@@ -51,7 +51,8 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
     ass = subtitle.make_subtitle(words, work / "sub.ass", times, st.get("layout"), header, ch.get("subtitle"))
     per_segment = times if st.get("background") == "per_segment" else None
     duration = render.audio_duration(mp3) + 1.0
-    bg, img_cfg = None, ch.get("scene_images") or {}
+    bg, img_cfg, pics = None, ch.get("scene_images") or {}, []
+    bg_seed = rng.randrange(1 << 30)
     scenes = [x for x in (scenes or []) if isinstance(x, dict) and x.get("image")][:img_cfg.get("max_scenes", 4)]
     if img_cfg.get("required") and len(scenes) < 2:
         shutil.rmtree(work, ignore_errors=True)
@@ -62,18 +63,17 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
             pics = images.generate([x["image"] for x in scenes], work / "scenes", img_cfg["art_style"], characters)
             starts = background.scene_starts(scenes, " ".join(x["text"] for x in segments),
                                              json.loads(words.read_text(encoding="utf-8")), duration)
-            bg = background.make_from_images(pics, starts, duration, work / "bg.mp4", seed=rng.randrange(1 << 30))
+            bg = background.make_from_images(pics, starts, duration, work / "bg.mp4", seed=bg_seed)
             info = info.replace("\n[업로드 전 사실 확인]", "※ 장면 그림은 AI로 생성한 이미지입니다.\n\n[업로드 전 사실 확인]", 1)
         except Exception as e:
             if img_cfg.get("required"):  # 그림 필수 채널: 무료 영상으로 대신하지 않고 건너뜀
                 shutil.rmtree(work, ignore_errors=True)
                 raise SkipVideo(f"장면 그림을 못 만들어 건너뜀: {e}") from e
             log.warning("장면 그림 실패, 일반 배경으로 대신: %s", e)  # 그 외 채널은 무료 영상 배경으로 계속
-            bg = None
+            bg, pics = None, []
     if bg is None:
         print(f"3/5 배경 만드는 중... (풀: {bg_pool}{', 구간마다 전환' if per_segment else ''})")
-        bg = background.make_background(duration, work / "bg.mp4", bg_pool, seed=rng.randrange(1 << 30),
-                                        segments=per_segment)
+        bg = background.make_background(duration, work / "bg.mp4", bg_pool, seed=bg_seed, segments=per_segment)
     track = music.pick(music_pool, rng)
     print(f"4/5 영상 합성 중... (음악: {track.stem if track else '없음'})")
     video = render.render(mp3, ass, work / "video.mp4", bg=bg, music=track)
@@ -81,6 +81,14 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
     print("5/5 저장 중...")
     credit = f"[음악 출처 - 설명란에 꼭 넣기]\n{music.credit(track)}\n" if track else ""
     final = export.save(video, channel, "\n".join(x for x in (info, credit) if x))
+    try:  # 대본 수정용 재료 보관 + 드라이브에 대본 문서 (사용자가 고치면 영상 다시 만들기)
+        edits.save_project(final, {
+            "channel": channel, "style": style, "segments": segments, "header": header, "narrator": narrator,
+            "bg_pool": bg_pool, "seed": bg_seed, "scenes": scenes,
+            "music": str(track.relative_to(config.ROOT)) if track else None,
+        }, pics, upload)
+    except Exception as e:
+        log.warning("대본 수정용 재료 저장 실패: %s", e)
     if not keep_work:
         shutil.rmtree(work)
     print(f"완성: {final}")

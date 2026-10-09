@@ -309,3 +309,8 @@ shorts-factory/
     - 마무리의 시청자 당부·댓글 유도·위로 문장은 사실 확인 단계 + `polish.strip_viewer_tail`로 제거 (사용자 결정: 없는 게 좋음)
     - 판례는 지방법원 사건만 (`cases.clear_result`), 길이는 크게 신경 쓰지 않음 (300~700자, 길이 문제는 다듬기로만)
     - 드라이브는 2026-10-09에 전부 비움 (사용자 요청). 테스트 영상은 ssul_test 폴더
+  - 대본 직접 수정 → 영상 다시 만들기 (2026-10-09, 사용자 선택 "1번 방식"): `src/edits.py`
+    - 영상을 만들 때 재료를 `output/<채널>/<날짜>/<번호>_project/`에 보관 (project.json: 구간 대본·화면 제목·스타일·채널·화자·배경 풀·seed·장면·음악, 장면 그림 파일)
+    - 드라이브에 `<번호>_대본` 구글 문서 업로드 (rclone `--drive-import-formats txt --drive-export-formats txt`, 앱이 만든 파일이라 drive.file 권한으로 읽기 가능, 수정해도 같은 파일 ID)
+    - cron 15분마다 `scripts/edits.sh` → `src.edits check`: 문서 내용 해시가 바뀐 영상만 다시 만듦 (목소리·자막 자동, 그림·음악·배경 seed 재사용, 업로드 정보 [대본]·[화면 위 제목] 갱신, 드라이브 영상 교체). 같은 잠금 파일이라 제작 중이면 건너뜀
+    - 재료 폴더는 드라이브에 올리지 않음 (export·cleanup에서 `*_project/**` 제외). 영상 하나 다시 만드는 데 약 4~5분
