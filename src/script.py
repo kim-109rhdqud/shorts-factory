@@ -289,7 +289,12 @@ def generate(topic: str, style: str = "trivia", ch: dict | None = None, source: 
             data.update(topic=topic, style=style, provider=provider, attempts=attempt)
             if source:
                 data.update(source_text=source["text"], source_info=source.get("info", {}))
-            return review(data, ch) if config.load()["script"].get("review", True) else data
+            do_review = st.get("review", config.load()["script"].get("review", True))
+            data = review(data, ch) if do_review else data
+            if st.get("polish") and source and source.get("facts"):  # 다른 AI(Sonnet)로 다듬기
+                from src import polish
+                data = polish.polish(data, source["facts"], source["text"], st["polish"])
+            return data
         log.warning("대본 검사 실패 (시도 %d): %s", attempt, "; ".join(problems))
         last_problems = problems
         prev = f"\n\n# 이전 답변\n{text[:3000]}" if data else ""

@@ -61,7 +61,7 @@ llm:
   timeout_sec: 240
   retries: 2                 # 프로그램마다 재시도 횟수
   min_interval_sec: 5        # 호출 사이 최소 간격
-  daily_limit: {agy: 40, claude: 10}
+  daily_limit: {agy: 60, claude: 10}   # 판례 영상 1개에 약 12~15회 (사실 목록·초안·Sonnet 다듬기·제목) → 하루 2개 + 여유
   sandbox: ~/.local/share/shorts-factory/llm_sandbox  # AI가 실행되는 빈 폴더 (프로젝트 밖: CLAUDE.md 등을 읽지 않게)
   usage_file: data/llm_usage.json
 

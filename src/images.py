@@ -60,7 +60,8 @@ def build_prompt(descriptions: list[str], art_style: str, characters: str = "") 
     return (
         f"Generate {len(descriptions)} separate images, vertical 9:16, all in exactly the same art style: {art_style}.\n"
         "Absolutely no text, letters, numbers, sound effects or speech bubbles anywhere in the images. "
-        "Screens and papers must show only blurred or abstract shapes.\n"
+        "No logos, no brand names, no trademarks, no store signs. Buildings, cars and products must be generic and unbranded. "
+        "Screens, papers and signs must show only blurred or abstract shapes.\n"
         + (f"Keep these characters looking identical in every image: {characters}\n" if characters else "")
         + "\n".join(lines)
         + "\nSave them as " + ", ".join(f"scene{i}" for i in range(1, len(descriptions) + 1)) + ". "

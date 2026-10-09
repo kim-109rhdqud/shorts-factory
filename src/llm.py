@@ -127,12 +127,14 @@ def _call_claude(prompt: str, model: str | None = None) -> str:
 CALLERS = {"agy": _call_agy, "claude": _call_claude}
 
 
-def generate(prompt: str, agy_model: str | None = None) -> tuple[str, str]:
+def generate(prompt: str, agy_model: str | None = None, providers: list[str] | None = None) -> tuple[str, str]:
     """프롬프트 → (답변 텍스트, 사용한 프로그램). 순서대로 시도하고 전부 실패하면 오류.
-    agy_model: 이번 호출만 다른 Antigravity 모델 사용 (예: 창작은 Pro)"""
+    agy_model: 이번 호출만 다른 Antigravity 모델 사용 (예: 창작은 Pro, 평가는 GPT)
+    providers: 이번 호출에 쓸 프로그램만 (예: ["agy"] → 실패해도 Claude로 넘어가지 않음)"""
     cfg = _cfg()
     errors, auth_errors = [], []
-    for provider in cfg["providers"]:
+    providers = providers or cfg["providers"]
+    for provider in providers:
         if calls_today(provider) >= cfg["daily_limit"][provider]:
             errors.append(f"{provider}: 오늘 호출 상한({cfg['daily_limit'][provider]}회) 도달")
             continue
@@ -153,7 +155,7 @@ def generate(prompt: str, agy_model: str | None = None) -> tuple[str, str]:
                 log.warning("%s 시도 %d 실패: %s", provider, attempt, e)
                 errors.append(str(e))
         log.warning("%s 포기 → 다음으로 전환", provider)
-    if auth_errors and len(auth_errors) == len(cfg["providers"]):
+    if auth_errors and len(auth_errors) == len(providers):
         raise AuthExpired(" / ".join(auth_errors))
     if errors and all("상한" in e for e in errors):
         raise DailyLimit(" / ".join(errors))

@@ -108,6 +108,15 @@ def claims(case: dict) -> str:
     return _section(case["body"], "청구취지", (r"이\s*유",))
 
 
+def clear_result(case: dict) -> bool:
+    """누가 이겼는지 분명한 사건만: 다시 재판하라고 돌려보낸 사건(환송)은 빼고,
+    주문에 금액(배상·반환)이 있거나 청구를 기각한 사건만."""
+    v = verdict(case)
+    if not v or "환송" in v or "이송" in v:
+        return False
+    return bool(script._money(v)) or "기각" in v
+
+
 def source_text(case: dict) -> str:
     """대본 작성용 원자료. 실제 결과(주문)와 요구한 것(청구취지)을 맨 위에 따로 표시해 헷갈리지 않게."""
     return (f"법원: {case['court']} / 사건번호: {case['case_no']} / 사건명: {case['name']} / 선고일: {case['date']}\n"
@@ -170,12 +179,15 @@ def pick(rng: random.Random | None = None, tries: int = 8) -> dict:
             continue
         rng.shuffle(hits)
         cands = [fetch(h["판례일련번호"]) for h in hits[:8]]
-        cands = [c for c in cands if c and len(c["body"]) > 1500 and (c["summary"] or c["gist"])]
+        cands = [c for c in cands if c and len(c["body"]) > 1500 and (c["summary"] or c["gist"]) and clear_result(c)]
         if not cands:
             continue
         listing = "\n".join(f"{i}. [{c['name']}] {(c['summary'] or c['gist'])[:300]}" for i, c in enumerate(cands))
-        prompt = (f"아래는 '{keyword}' 관련 민사 판례 후보다. 일반인이 '나도 겪을 수 있겠다' 싶은 생활 분쟁이고, "
-                  "사연으로 풀었을 때 재밌고, 결과(누가 이겼는지, 얼마를 물어 줬는지)가 분명한 것을 하나 고른다. "
+        prompt = (f"아래는 '{keyword}' 관련 민사 판례 후보다. 유튜브 쇼츠로 만들 사건을 하나 고른다. 기준:\n"
+                  "1) 일반인이 '나도 겪을 수 있겠다' 싶은 생활 분쟁\n"
+                  "2) 억울함, 분노, 황당함, 공감 같은 감정이 바로 생기는 장면이 있음\n"
+                  "3) 결과(누가 이겼는지, 얼마를 물어 줬는지)가 분명함. 다시 재판하라고 돌려보내기만 한 사건은 피한다\n"
+                  "4) 첫 문장 하나로 상황이 설명됨. 법리 설명이 길어야 이해되는 사건은 피한다\n"
                   "회사 간 분쟁, 세금, 복잡한 법리 다툼, 범죄·폭력·성 관련, 너무 무거운 사건은 피한다. "
                   "완벽하지 않아도 후보 중 가장 나은 것을 고른다. 전부 위에서 피하라고 한 종류일 때만 -1.\n\n"
                   f"{listing}\n\n숫자 하나만 출력한다.")
