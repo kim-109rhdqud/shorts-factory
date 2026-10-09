@@ -61,7 +61,7 @@ llm:
   timeout_sec: 240
   retries: 2                 # 프로그램마다 재시도 횟수
   min_interval_sec: 5        # 호출 사이 최소 간격
-  daily_limit: {agy: 60, claude: 10}   # 판례 영상 1개에 약 12~15회 (사실 목록·초안·Sonnet 다듬기·제목) → 하루 2개 + 여유
+  daily_limit: {agy: 120, claude: 10}  # 2026-10-09 사용자 요청으로 상향 (판례 영상 1개에 약 12~15회)
   sandbox: ~/.local/share/shorts-factory/llm_sandbox  # AI가 실행되는 빈 폴더 (프로젝트 밖: CLAUDE.md 등을 읽지 않게)
   usage_file: data/llm_usage.json
 
@@ -75,6 +75,6 @@ cleanup:
   keep_days: 14              # 서버에서 이 날짜보다 오래된 영상 폴더 삭제 (드라이브에 있을 때만)
 
 images:
-  daily_limit: 10            # 하루 AI 그림 상한. 구독 한도가 하루 10장 남짓 (2026-10-07 13장째에 429 오류) → 썰 하루 2개 × 4장
+  daily_limit: 20            # 하루 AI 그림 상한 (2026-10-09 사용자 요청으로 10 → 20). 구글 실제 한도는 확인 중 (10-07에 13장째 429)
   timeout_sec: 1500          # 그림 한 묶음 생성 최대 대기
   usage_file: data/image_usage.json
