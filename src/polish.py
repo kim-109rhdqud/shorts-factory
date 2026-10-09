@@ -51,12 +51,30 @@ def titles(text: str, model: str) -> tuple[str, str] | None:
     return clean(t.group(1))[:40], clean(h.group(1))[:24]
 
 
-META_TAIL = re.compile(r"[^.?!]*(설명란|사건번호|판결문과 함께|구독|좋아요|알림 설정)[^.?!]*[.?!]")
+META_TAIL = re.compile(r"[^.?!]*(설명란|사건번호|판결문을 확인|판결문과 함께|구독|좋아요|알림 설정|팔로우|도움이 되셨|"
+                       r"자료에 없|확인한 자료|확인이 필요)[^.?!]*[.?!]")
 
 
 def strip_meta(text: str) -> str:
     """'사건번호는 설명란에…', '구독과 좋아요' 같은 영상 밖 안내 문장을 뺀다."""
     return " ".join(META_TAIL.sub("", text).split())
+
+
+VIEWER_TAIL = re.compile(r"(세요|주세요|마세요|보세요|드립니다|바랍니다)[.!]?$|댓글|구독|공유해|게 좋습니다|게 좋아요"
+                         r"|어떻게 해야 할까요|기억하세요|잊지 마|혼자 참지|도움을 요청|미리 확인|꼭 확인")
+
+
+def strip_viewer_tail(text: str) -> str:
+    """끝에서부터 시청자에게 하는 당부·댓글 유도 문장을 뺀다 (사용자 결정 2026-10-09: 마무리 문장 없이)."""
+    sents = [x for x in re.split(r"(?<=[.?!])\s+", text.strip()) if x]
+    while sents and VIEWER_TAIL.search(sents[-1]):
+        sents.pop()
+    return " ".join(sents)
+
+
+def _punctuated(text: str) -> bool:
+    """문장부호가 충분한지 (대략 80자에 하나 이상)."""
+    return len(re.findall(r"[.?!]", text)) >= max(2, len(text) // 80)
 
 
 def fact_fix(text: str, facts: dict, scenes: list[dict], source: str, tries: int = 2) -> dict:
@@ -65,15 +83,19 @@ def fact_fix(text: str, facts: dict, scenes: list[dict], source: str, tries: int
                                                  scenes=scene_list, script=text)
     for attempt in range(tries):
         fixed = script.extract_json(llm.generate(prompt)[0])
-        segs = [{"label": "", "text": script.fix_counters(" ".join(fixed["story"].split()))},
+        segs = [{"label": "", "text": script.fix_counters(strip_meta(fixed["story"]))},
                 {"label": "판결", "item": fixed.get("verdict_item", ""),
-                 "text": script.fix_counters(strip_meta(fixed["verdict"]))}]
+                 "text": script.fix_counters(strip_viewer_tail(strip_meta(fixed["verdict"])))}]
         money = script.money_problems({"segments": segs}, source)
+        if not all(_punctuated(x["text"]) for x in segs):
+            log.warning("사실 확인 결과에 문장부호가 부족함, 다시")
+            prompt += "\n\n# 이전 결과의 문제\n- 문장 끝 마침표가 빠졌음. 모든 문장 끝에 마침표를 붙일 것"
+            continue
         if not money:
             return {"segments": segs, "changes": fixed.get("changes", []), "scene_from": fixed.get("scene_from", [])}
         log.warning("사실 확인 후에도 금액 문제: %s", money)
         prompt += "\n\n# 이전 결과의 문제 (판결문 금액으로 고칠 것)\n- " + "\n- ".join(money)
-    raise RuntimeError(f"사실 확인 실패: {money}")
+    raise RuntimeError("사실 확인 실패 (금액 또는 문장부호)")
 
 
 def polish(data: dict, facts: dict, source: str, cfg: dict) -> dict:

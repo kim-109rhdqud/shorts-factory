@@ -263,8 +263,8 @@ SOFT_PROBLEMS = ("문장이 너무 김", "첫 문장이 너무 김", "어려운 
 def _is_soft(problem: str, st: dict) -> bool:
     if problem.startswith(SOFT_PROBLEMS):
         return True
-    m = re.match(r"대본 길이 (\d+)자", problem)  # 글자 수가 범위에서 10% 이내로 벗어난 건 다듬기
-    return bool(m) and st["min_chars"] * 0.9 <= int(m.group(1)) <= st["max_chars"] * 1.1
+    m = re.match(r"대본 길이 (\d+)자", problem)  # 글자 수 문제는 다듬기 (너무 짧은 것만 빼고)
+    return bool(m) and int(m.group(1)) >= st["min_chars"] * 0.7
 
 
 def generate(topic: str, style: str = "trivia", ch: dict | None = None, source: dict | None = None) -> dict:

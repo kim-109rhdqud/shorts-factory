@@ -2,8 +2,8 @@
 name: 판례 썰
 segmented: true
 labels: ["판결"]          # 판결 구간에만 위쪽에 "판결" 표시
-min_chars: 380            # 공백 제외 (+30% 속도에서 약 1분 10~25초). 길면 주저리주저리 (사용자 피드백)
-max_chars: 500
+min_chars: 300            # 공백 제외. 길이는 크게 신경 쓰지 않음 (사용자 결정 2026-10-09), 초안 기준으로만
+max_chars: 700
 segment_pause: 0.6        # 사연 → 판결 넘어갈 때 잠깐 뜸
 extra_keys: [header, narrator]
 agy_model: gemini-3.1-pro-high

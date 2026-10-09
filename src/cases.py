@@ -95,7 +95,7 @@ def _section(body: str, name: str, stop: tuple[str, ...]) -> str:
     """판결문에서 【이름...】 다음부터 다음 【(stop 중 하나)...】 표시 전까지. 예) 【청구취지 및 항소취지】"""
     head = r"\s*".join(name)
     m = re.search(r"【\s*" + head + r"[^】]*】(.*?)(?=【\s*(?:" + "|".join(stop) + r")|$)", body, re.S)
-    return re.sub(r"\s+", " ", m.group(1)).strip()[:600] if m else ""
+    return re.sub(r"\s+", " ", m.group(1)).strip()[:2500] if m else ""
 
 
 def verdict(case: dict) -> str:
@@ -114,6 +114,8 @@ def clear_result(case: dict) -> bool:
     v = verdict(case)
     if not v or "환송" in v or "이송" in v:
         return False
+    if "지법" not in case["court"] and "지방법원" not in case["court"]:
+        return False  # 대법원·고법은 법 이론 다툼이 많아 이야기가 약함 → 사실관계 다툼이 많은 지방법원 사건만
     return bool(script._money(v)) or "기각" in v
 
 
@@ -174,6 +176,7 @@ def pick(rng: random.Random | None = None, tries: int = 8) -> dict:
     used = used_ids()
     for keyword in keywords[:tries]:
         hits = [h for h in search(keyword) if str(h["판례일련번호"]) not in used
+                and ("지법" in h.get("법원명", "") or "지방법원" in h.get("법원명", "") or not h.get("법원명"))
                 and h.get("선고일자", "0")[:4] >= str(st.get("min_year", 2005))]
         if not hits:
             continue
