@@ -153,12 +153,13 @@ def fetch_flow_clips(pfile: Path, project: dict) -> bool:
     changed, clips = False, dict(project.get("flow_clips", {}))
     for f in json.loads(r.stdout or "[]"):
         n = _scene_number(f["Name"])
-        if f.get("IsDir") or not f["Name"].lower().endswith(VIDEO_EXT) or not n:
+        is_video = f["Name"].lower().endswith(VIDEO_EXT) or f.get("MimeType", "").startswith("video/")
+        if f.get("IsDir") or not is_video or not n or f["Name"].startswith("시작그림"):
             continue
         key = f"{f.get('ID')}:{f.get('Size')}:{f.get('ModTime')}"
         if clips.get(str(n), {}).get("key") == key:
             continue
-        dest = pfile.parent / "flow" / f"scene{n}{Path(f['Name']).suffix.lower()}"
+        dest = pfile.parent / "flow" / f"scene{n}{Path(f['Name']).suffix.lower() or '.mp4'}"
         dest.parent.mkdir(exist_ok=True)
         subprocess.run([config.tool("rclone"), "copyto", f"{flow_folder(video)}/{f['Name']}", str(dest)], check=True)
         clips[str(n)] = {"key": key, "file": str(dest.relative_to(pfile.parent)), "name": f["Name"]}
