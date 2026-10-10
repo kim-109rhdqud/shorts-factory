@@ -15,7 +15,12 @@ subtitle:
 youtube_channel_id: ""
 banned_topics: []
 scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
-  enabled: false                 # 테스트: 그림 없이 무료 영상 배경
-  required: false
-  max_scenes: 5
+  enabled: true
+  required: true
+  max_scenes: 6                  # Flow 장면 6개 (B안: 10초 × 6 = 90 크레딧)
   art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"
+flow:                            # 장면마다 Flow 영상 (사용자가 Flow에서 직접 생성, 2026-10-10 결정)
+  enabled: true
+  clip_seconds: 10               # Omni 1.1 Flash 10초 = 15 크레딧
+  setting: "Omni 1.1 Flash · 10초 · 세로(9:16)"
+  style_suffix: "Korean webtoon illustration style, same characters as the input image, smooth subtle motion, vertical 9:16, no text, no logos"

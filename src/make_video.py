@@ -64,7 +64,9 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
             starts = background.scene_starts(scenes, " ".join(x["text"] for x in segments),
                                              json.loads(words.read_text(encoding="utf-8")), duration)
             bg = background.make_from_images(pics, starts, duration, work / "bg.mp4", seed=bg_seed)
-            info = info.replace("\n[업로드 전 사실 확인]", "※ 장면 그림은 AI로 생성한 이미지입니다.\n\n[업로드 전 사실 확인]", 1)
+            note = ("※ 장면 영상은 AI(Google Flow)로 생성했습니다." if (ch.get("flow") or {}).get("enabled")
+                    else "※ 장면 그림은 AI로 생성한 이미지입니다.")
+            info = info.replace("\n[업로드 전 사실 확인]", f"{note}\n\n[업로드 전 사실 확인]", 1)
         except Exception as e:
             if img_cfg.get("required"):  # 그림 필수 채널: 무료 영상으로 대신하지 않고 건너뜀
                 shutil.rmtree(work, ignore_errors=True)
@@ -86,6 +88,7 @@ def make(segments: list[dict], channel: str, style: str = "trivia", bg_pool: str
             "channel": channel, "style": style, "segments": segments, "header": header, "narrator": narrator,
             "bg_pool": bg_pool, "seed": bg_seed, "scenes": scenes,
             "music": str(track.relative_to(config.ROOT)) if track else None,
+            "flow": ch.get("flow") if (ch.get("flow") or {}).get("enabled") and pics else None,
         }, pics, upload)
     except Exception as e:
         log.warning("대본 수정용 재료 저장 실패: %s", e)

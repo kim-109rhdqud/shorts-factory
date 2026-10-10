@@ -28,6 +28,8 @@ JSON 하나만. 설명, 마크다운, 코드블록 없이.
   "music_pool": "다음 중 하나: {music_pools}",
   "fact_check": ["판결 결과와 금액, 날짜, 사건번호 등 업로드 전 확인할 것"],
   "characters": "주요 인물 외모 (영어, 장면 그림용)",
-  "scenes": [{{"from": "장면이 시작되는 대본 문장 앞부분 (대본 글자 그대로)", "image": "English scene description, no text in image"}}]
+  "scenes": [{{"from": "장면이 시작되는 대본 문장 앞부분 (대본 글자 그대로)",
+              "image": "이 장면의 첫 화면 그림 설명 (English, no text in image)",
+              "motion": "그 그림에서 시작해 10초 동안 일어나는 움직임 (English, 1~2문장: 인물 행동, 표정 변화, 카메라 움직임)"}}]
 }}
-scenes는 대본 흐름대로 5개.
+scenes는 대본 흐름대로 6개. 장면마다 대본의 비슷한 분량을 맡게 나눈다.

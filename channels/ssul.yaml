@@ -7,7 +7,7 @@ voices:                          # 화자 성별 → 목소리 (썰 스타일)
   male: ko-KR-InJoonNeural
 speech_rate: "+30%"
 voice_pitch: "-4Hz"              # 다른 채널과 구분되게 살짝 낮은 톤
-daily_count: 2
+daily_count: 1                   # 2026-10-10 Flow 전환으로 하루 1편
 priority: 1                      # 숫자가 작을수록 먼저 제작 (구글 한도를 썰 채널이 먼저 쓰게)
 music_pools: [km_calm]            # 2026-10-08 새 선곡
 subtitle:
@@ -16,6 +16,11 @@ youtube_channel_id: ""
 banned_topics: []
 scene_images:                    # 장면마다 AI 그림 (Antigravity 이미지 생성, 구독 범위)
   enabled: true
-  max_scenes: 5                  # 판례 대본 구조(장면 5개)에 맞춤. 하루 2개 × 5장 = 10장 (그림 한도)
-  required: true                 # 그림을 못 그리면(한도 등) 무료 영상으로 대신하지 말고 이 영상은 건너뜀
+  max_scenes: 6                  # Flow 장면 6개 (B안: 10초 × 6 = 90 크레딧)
+  required: true
   art_style: "Korean webtoon illustration, clean line art, soft cel shading, warm muted colors, cinematic composition"
+flow:                            # 장면마다 Flow 영상 (사용자가 Flow에서 직접 생성, 2026-10-10 결정)
+  enabled: true
+  clip_seconds: 10               # Omni 1.1 Flash 10초 = 15 크레딧
+  setting: "Omni 1.1 Flash · 10초 · 세로(9:16)"
+  style_suffix: "Korean webtoon illustration style, same characters as the input image, smooth subtle motion, vertical 9:16, no text, no logos"

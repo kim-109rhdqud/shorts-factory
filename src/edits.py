@@ -88,7 +88,7 @@ def save_project(video: Path, project: dict, scene_images: list[Path | None], up
             names.append(dest.name)
         else:
             names.append(None)
-    project = {**project, "scene_images": names, "video": video.name,
+    project = {**project, "scene_images": names, "video": video.name, "flow_clips": {},
                "rendered_hash": _hash(project.get("header"), project["segments"]),
                "created": dt.datetime.now().isoformat(timespec="seconds"), "edits": 0}
     (pdir / "project.json").write_text(json.dumps(project, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -96,7 +96,78 @@ def save_project(video: Path, project: dict, scene_images: list[Path | None], up
     doc.write_text(to_doc(project.get("header"), project["segments"]), encoding="utf-8")
     if upload:
         upload_doc(video, doc)
+        if project.get("flow"):
+            upload_flow_work(video, pdir, project)
     return pdir
+
+
+# ---------- Flow 작업 (사용자가 Flow에서 장면 영상을 만들어 드라이브 폴더에 넣음) ----------
+
+VIDEO_EXT = (".mp4", ".mov", ".webm", ".m4v")
+
+
+def flow_folder(video: Path) -> str:
+    return f"{_remote(video.parent)}/{video.stem}_flow"
+
+
+def flow_prompt(scene: dict, flow_cfg: dict) -> str:
+    return f"{scene.get('motion') or scene.get('image', '')} {flow_cfg.get('style_suffix', '')}".strip()
+
+
+def upload_flow_work(video: Path, pdir: Path, project: dict) -> None:
+    """드라이브에 <번호>_flow/ 폴더(시작 그림)와 <번호>_Flow작업 문서(장면별 문장)를 올린다."""
+    flow_cfg, scenes = project["flow"], project.get("scenes", [])
+    rclone = config.tool("rclone")
+    for i, name in enumerate(project.get("scene_images", []), 1):
+        if name:
+            subprocess.run([rclone, "copyto", str(pdir / name), f"{flow_folder(video)}/시작그림_{i}{Path(name).suffix}"],
+                           check=True)
+    lines = [f"Flow 작업: {video.stem}번 영상 (장면 {len(scenes)}개)",
+             f"설정: {flow_cfg.get('setting', '')}",
+             "",
+             "하는 방법",
+             f"1. 드라이브 {video.stem}_flow 폴더에서 '시작그림_1'을 받는다",
+             "2. Flow에서 그림을 넣고, 아래 '장면 1' 문장을 그대로 복사해 붙여 넣고 생성한다",
+             f"3. 만든 영상을 {video.stem}_flow 폴더에 '장면1' 이라는 이름으로 넣는다 (번호만 맞으면 됨)",
+             "4. 장면 6까지 반복. 다 안 해도 넣은 장면부터 영상에 들어간다 (15분마다 확인)",
+             ""]
+    for i, sc in enumerate(scenes, 1):
+        lines += [f"[장면 {i}] 시작그림_{i}", flow_prompt(sc, flow_cfg), ""]
+    doc = pdir / f"{video.stem}_Flow작업.txt"
+    doc.write_text("\n".join(lines), encoding="utf-8")
+    subprocess.run([rclone, "copyto", str(doc), f"{_remote(video.parent)}/{doc.name}",
+                    "--drive-import-formats", "txt", "--drive-export-formats", "txt"], check=True)
+
+
+def _scene_number(name: str) -> int | None:
+    m = re.search(r"(\d+)", Path(name).stem)
+    return int(m.group(1)) if m else None
+
+
+def fetch_flow_clips(pfile: Path, project: dict) -> bool:
+    """드라이브 <번호>_flow 폴더에 새로 들어온(또는 바뀐) 장면 영상을 받아 온다. 새 게 있으면 True."""
+    video = pfile.parent.parent / project["video"]
+    r = subprocess.run([config.tool("rclone"), "lsjson", flow_folder(video)], capture_output=True, text=True)
+    if r.returncode != 0:
+        return False
+    changed, clips = False, dict(project.get("flow_clips", {}))
+    for f in json.loads(r.stdout or "[]"):
+        n = _scene_number(f["Name"])
+        if f.get("IsDir") or not f["Name"].lower().endswith(VIDEO_EXT) or not n:
+            continue
+        key = f"{f.get('ID')}:{f.get('Size')}:{f.get('ModTime')}"
+        if clips.get(str(n), {}).get("key") == key:
+            continue
+        dest = pfile.parent / "flow" / f"scene{n}{Path(f['Name']).suffix.lower()}"
+        dest.parent.mkdir(exist_ok=True)
+        subprocess.run([config.tool("rclone"), "copyto", f"{flow_folder(video)}/{f['Name']}", str(dest)], check=True)
+        clips[str(n)] = {"key": key, "file": str(dest.relative_to(pfile.parent)), "name": f["Name"]}
+        log.info("Flow 장면 %d 받음: %s", n, f["Name"])
+        changed = True
+    if changed:
+        project["flow_clips"] = clips
+        pfile.write_text(json.dumps(project, ensure_ascii=False, indent=1), encoding="utf-8")
+    return changed
 
 
 def upload_doc(video: Path, doc: Path) -> None:
@@ -134,11 +205,13 @@ def rerender(pfile: Path, header: str | None, segments: list[dict]) -> Path:
         ass = subtitle.make_subtitle(words, work / "sub.ass", times, st.get("layout"), header, ch.get("subtitle"))
         duration = render.audio_duration(mp3) + 1.0
         pics = [pdir / n if n else None for n in project.get("scene_images", [])]
-        if pics and any(pics):
+        flow = project.get("flow_clips", {})
+        clips = [pdir / flow[str(i)]["file"] if str(i) in flow else None for i in range(1, len(pics) + 1)]
+        if pics and (any(pics) or any(clips)):
             starts = background.scene_starts(project.get("scenes", []), " ".join(s["text"] for s in segments),
                                              json.loads(words.read_text(encoding="utf-8")), duration)
             bg = background.make_from_images(pics, starts[:len(pics)], duration, work / "bg.mp4",
-                                             seed=project.get("seed"))
+                                             seed=project.get("seed"), clips=clips)
         else:
             per_segment = times if st.get("background") == "per_segment" else None
             bg = background.make_background(duration, work / "bg.mp4", project.get("bg_pool"),
@@ -161,6 +234,7 @@ def rerender(pfile: Path, header: str | None, segments: list[dict]) -> Path:
             text = re.sub(r"\[화면 위 제목\]\n[^\n]*", lambda m: f"[화면 위 제목]\n{header}", text)
         up.write_text(text, encoding="utf-8")
     project.update(segments=segments, header=header, rendered_hash=_hash(header, segments),
+                   rendered_clips={k: v["key"] for k, v in project.get("flow_clips", {}).items()},
                    edits=project.get("edits", 0) + 1, last_edit=dt.datetime.now().isoformat(timespec="seconds"))
     pfile.write_text(json.dumps(project, ensure_ascii=False, indent=1), encoding="utf-8")
     export.upload(final.parent)
@@ -168,7 +242,7 @@ def rerender(pfile: Path, header: str | None, segments: list[dict]) -> Path:
 
 
 def check() -> list[str]:
-    """드라이브의 대본 문서가 바뀐 영상만 다시 만든다."""
+    """드라이브의 대본 문서가 바뀌었거나 Flow 장면 영상이 새로 들어온 영상만 다시 만든다."""
     done = []
     for pfile in projects():
         project = json.loads(pfile.read_text(encoding="utf-8"))
@@ -177,9 +251,13 @@ def check() -> list[str]:
         if text is None:
             continue
         header, segs = from_doc(text, project["segments"])
-        if _hash(header, segs) == project.get("rendered_hash"):
+        if project.get("flow"):
+            fetch_flow_clips(pfile, project)
+        rendered = project.get("rendered_clips", {})
+        new_clips = {k: v["key"] for k, v in project.get("flow_clips", {}).items()} != rendered
+        if _hash(header, segs) == project.get("rendered_hash") and not new_clips:
             continue
-        log.info("대본 수정 감지 → 다시 만들기: %s", video)
+        log.info("%s → 다시 만들기: %s", "Flow 장면 도착" if new_clips else "대본 수정 감지", video)
         try:
             rerender(pfile, header, segs)
             done.append(str(video))

@@ -194,12 +194,27 @@ KEN_BURNS = {  # 확대·이동 효과 (p = 0→1 진행률)
 }
 
 
+MAX_SLOW = 1.35  # Flow 영상을 장면 길이에 맞출 때 최대 몇 배까지 느리게 할지 (그 이상은 마지막 화면 유지)
+
+
+def _clip_part(clip: Path, part_len: float, part: Path, w: int, h: int, fps: int, threads: int) -> None:
+    """Flow 영상 → 세로로 꽉 채워 자르고, 장면 길이에 맞게 살짝 느리게(최대 1.35배), 그래도 짧으면 마지막 화면 유지. 소리 끔."""
+    d = clip_duration(clip)
+    factor = min(MAX_SLOW, max(1.0, part_len / d)) if d > 0 else 1.0
+    hold = max(0.0, part_len - d * factor)
+    vf = (f"setpts=PTS*{factor:.4f},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,"
+          f"fps={fps}" + (f",tpad=stop_mode=clone:stop_duration={hold:.3f}" if hold > 0.05 else ""))
+    subprocess.run([config.tool("ffmpeg"), "-y", "-loglevel", "error", "-i", str(clip), "-vf", vf, "-an",
+                    "-t", f"{part_len:.3f}", *_ffmpeg_out_args(), str(part)], check=True)
+
+
 def make_from_images(images: list[Path | None], starts: list[float], duration: float, out_path: Path,
-                     seed: int | None = None, fade: float = 0.5) -> Path:
+                     seed: int | None = None, fade: float = 0.5, clips: list[Path | None] | None = None) -> Path:
     """장면 그림들을 확대·이동 효과 + 부드러운 전환(xfade)으로 이어 배경 mp4를 만든다.
     못 만든 그림(None)은 앞(없으면 뒤) 그림으로 채움. 절반 이상 없으면 오류 (→ 무료 영상으로 대신)."""
+    clips = (list(clips or []) + [None] * len(images))[:len(images)]
     valid = [p for p in images if p]
-    if len(valid) < max(1, len(images) / 2):
+    if len(valid) + sum(1 for c in clips if c) < max(1, len(images) / 2):
         raise RuntimeError("장면 그림이 너무 적음")
     filled, last = [], None
     for p in images:
@@ -221,6 +236,11 @@ def make_from_images(images: list[Path | None], starts: list[float], duration: f
         parts = []
         for i, (img, length, eff) in enumerate(zip(filled, lengths, effects)):
             part_len = length + (fade if i + 1 < len(lengths) else 0)
+            if clips[i]:  # 이 장면은 Flow 영상
+                part = Path(tmp) / f"img{i:02d}.mp4"
+                _clip_part(clips[i], part_len, part, w, h, fps, vid["threads"])
+                parts.append(part)
+                continue
             frames = max(2, round(part_len * fps))
             p = f"(on/{frames - 1})"
             z, x, y = (e.format(p=p) for e in KEN_BURNS[eff])

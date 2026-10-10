@@ -13,7 +13,7 @@ paths:
   work: output/_work   # 중간 파일 (음성, 자막 등)
 
 drive:
-  remote: "gdrive:shorts-factory"   # rclone 리모트:드라이브 폴더
+  remote: "gdrive:"   # rclone 리모트 (root_folder_id = 드라이브 shorts-factory 폴더)
 
 video:
   width: 1080

@@ -202,7 +202,7 @@ shorts-factory/
   - 방화벽 ufw: 22, 80, 443만 개방 / fail2ban(sshd) 적용
   - 설치 완료: FFmpeg 6.1.1, Node.js 24, Antigravity CLI 1.2.14 (`~/.local/bin/agy`, Google AI Pro 로그인), Claude Code
   - `agy -p`, `claude -p` 헤드리스 호출 모두 동작 확인
-  - rclone 1.75: 리모트 이름 `gdrive`, 권한 `drive.file`(rclone이 만든 파일만 접근), 드라이브 폴더 `shorts-factory/`
+  - rclone 1.75: 리모트 이름 `gdrive`, 권한 `drive` + `root_folder_id` = 드라이브 `shorts-factory/` 폴더 (2026-10-10 변경: 사용자가 올린 Flow 영상을 읽기 위해. 리모트 `gdrive:`가 곧 shorts-factory 폴더, config.yaml `drive.remote: "gdrive:"`. 이전 설정 백업 `~/.config/rclone/rclone.conf.bak-drivefile`)
     - 전용 OAuth 클라이언트 사용 (구글 클라우드 프로젝트 `shorts-factory`, 앱 게시 상태 = 프로덕션 → 토큰 7일 만료 없음)
     - OAuth 동의 화면용 홈페이지/개인정보처리방침: `/var/www/app/` (Caddy가 `/app/*` 경로로 제공)
   - 서버에서 로그인 필요할 때: 로그인 주소를 사용자에게 주고, 돌아온 코드나 주소를 받아 서버에서 대신 입력 (tmux send-keys / curl 127.0.0.1:53682)
@@ -314,3 +314,9 @@ shorts-factory/
     - 드라이브에 `<번호>_대본` 구글 문서 업로드 (rclone `--drive-import-formats txt --drive-export-formats txt`, 앱이 만든 파일이라 drive.file 권한으로 읽기 가능, 수정해도 같은 파일 ID)
     - cron 15분마다 `scripts/edits.sh` → `src.edits check`: 문서 내용 해시가 바뀐 영상만 다시 만듦 (목소리·자막 자동, 그림·음악·배경 seed 재사용, 업로드 정보 [대본]·[화면 위 제목] 갱신, 드라이브 영상 교체). 같은 잠금 파일이라 제작 중이면 건너뜀
     - 재료 폴더는 드라이브에 올리지 않음 (export·cleanup에서 `*_project/**` 제외). 영상 하나 다시 만드는 데 약 4~5분
+  - Google Flow 장면 영상 (2026-10-10, 사용자 결정 C안·B안): 판례 영상 하루 1개, 장면 6개 × Flow 10초 (Omni 1.1 Flash, 15크레딧씩 = 하루 90). 일요일 + 한 달에 2~3일 쉬기. Flow는 API가 없어 사용자가 직접 만듦 (자동 조작 안 함)
+    - 대본 JSON scenes 6개: from + image(시작 그림) + motion(10초 움직임). 서버가 시작 그림(웹툰풍)을 그림
+    - 영상을 만들면 드라이브 날짜 폴더에 `<번호>_flow/`(시작그림_1~6)와 `<번호>_Flow작업` 문서(장면별 Flow 문장 = motion + 채널 flow.style_suffix, 설정) 업로드 (`edits.upload_flow_work`)
+    - 사용자가 Flow 영상을 `<번호>_flow/`에 `장면N` 이름으로 넣으면, 15분마다 `edits.check`가 받아서(`fetch_flow_clips`, 파일 ID·크기·시간으로 변경 감지) 그 장면만 영상으로 바꿔 다시 만듦. 짧으면 최대 1.35배 느리게 + 마지막 화면 정지 (`background._clip_part`)
+    - 설명란: "장면 영상은 AI(Google Flow)로 생성" 자동 표기
+    - 시험 중. 승인되면: 월~토 04:00 cron 1개, 쉬는 날 설정, 자동 제작 재개
