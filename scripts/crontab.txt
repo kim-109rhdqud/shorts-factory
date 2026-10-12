@@ -1,5 +1,5 @@
-# shorts-factory (한국 시간) — 2026-10-08 전체 일시 중지 (판례 대본 개선 중, 사용자 결정)
-# 0 4 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel ssul --count 2
-# 0 16 * * * /home/ubuntu/shorts-factory/scripts/daily.sh --channel japhak --channel ranklab --count 2
-# 대본 문서 수정 확인 (15분마다) → 고친 영상만 다시 만들기
+# shorts-factory (한국 시간) — 자동 제작 일시 중지 중 (사용자가 켜라고 할 때까지)
+# 판례 영상: 월~토 새벽 4시 1개 (일요일 쉼, 그 외 쉬는 날은 config.yaml schedule.off_days)
+# 0 4 * * 1-6 /home/ubuntu/shorts-factory/scripts/daily.sh --channel ssul
+# 대본 문서 수정·Flow 장면 도착 확인 (15분마다) → 해당 영상만 다시 만들기
 */15 * * * * /home/ubuntu/shorts-factory/scripts/edits.sh

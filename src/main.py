@@ -88,6 +88,24 @@ def run(channel_ids: list[str], count: int | None = None, dry_run: bool = False)
     return summary
 
 
+def flow_todo() -> list[str]:
+    """Flow 장면 영상이 아직 다 안 들어온 영상 목록 (최근 7일)."""
+    import json
+    from src import edits
+    cutoff = (dt.date.today() - dt.timedelta(days=7)).isoformat()
+    out = []
+    for pfile in edits.projects():
+        if pfile.parts[-3] < cutoff:
+            continue
+        p = json.loads(pfile.read_text(encoding="utf-8"))
+        if not p.get("flow"):
+            continue
+        total, got = len(p.get("scene_images", [])), len(p.get("flow_clips", {}))
+        if got < total:
+            out.append(f"  🎬 Flow 남음: {pfile.parts[-4]}/{pfile.parts[-3]}/{p['video']} 장면 {got}/{total}개 완료")
+    return out
+
+
 def write_status(s: dict, label: str) -> None:
     """드라이브에 상태 파일(_상태.txt) 올리기: 알림 대신 폰으로 드라이브 볼 때 같이 확인."""
     lines = [f"[{dt.datetime.now():%Y-%m-%d %H:%M}] {label}",
@@ -102,6 +120,7 @@ def write_status(s: dict, label: str) -> None:
         lines.append(f"  ❌ {f.get('channel')} {f.get('topic') or ''} {f.get('error', '')[:150]}")
     for k in s.get("skipped", []):
         lines.append(f"  ⏭️ {k.get('channel')} 건너뜀: {k.get('reason', '')[:150]}")
+    lines += flow_todo()
     status = config.path("logs/_상태.txt")
     old = status.read_text(encoding="utf-8").split("\n\n")[:13] if status.exists() else []  # 최근 14번만 유지
     status.write_text("\n\n".join(["\n".join(lines)] + old), encoding="utf-8")
@@ -120,6 +139,10 @@ def main():
     ap.add_argument("--cron", action="store_true", help="자동 실행용 (끝나고 오래된 영상 정리)")
     args = ap.parse_args()
     ids = args.channel or channels.list_ids()
+    off = [str(d) for d in (config.load().get("schedule") or {}).get("off_days") or []]
+    if args.cron and dt.date.today().isoformat() in off:
+        log.info("오늘은 쉬는 날 (config.yaml schedule.off_days) → 자동 제작 안 함")
+        return
     log.info("시작: 채널 %s%s", ids, " (주제만 보기)" if args.dry_run else "")
     s = run(ids, args.count, args.dry_run)
     log.info("끝: 성공 %d개, 실패 %d개%s", len(s["done"]), len(s["failed"]),
