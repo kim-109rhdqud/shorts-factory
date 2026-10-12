@@ -167,14 +167,14 @@ def writing_source(case: dict) -> str:
             f"[참고: 판결문 앞부분 (사실 목록과 다르면 목록을 따른다)]\n{case['body'][:2500]}")
 
 
-def pick(rng: random.Random | None = None, tries: int = 8) -> dict:
+def pick(rng: random.Random | None = None) -> dict:
     """아직 안 쓴 생활 분쟁 판례 하나를 고른다 (AI가 후보 중 가장 공감되는 것 선택)."""
     rng = rng or random.Random()
     st = script.style_config("case")
     keywords = list(st["keywords"])
     rng.shuffle(keywords)
     used = used_ids()
-    for keyword in keywords[:tries]:
+    for keyword in keywords:
         hits = [h for h in search(keyword) if str(h["판례일련번호"]) not in used
                 and ("지법" in h.get("법원명", "") or "지방법원" in h.get("법원명", "") or not h.get("법원명"))
                 and h.get("선고일자", "0")[:4] >= str(st.get("min_year", 2005))]

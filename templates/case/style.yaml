@@ -1,4 +1,4 @@
-# 판례 썰: 실제 판결문(저작권법 제7조, 보호받지 않는 저작물)을 당사자 시점 사연으로 재구성 → 마지막에 판결 공개
+# 판례 썰: 실제 판결문(저작권법 제7조, 보호받지 않는 저작물)을 3인칭 해설로 → 마지막에 판결 공개
 name: 판례 썰
 segmented: true
 labels: ["판결"]          # 판결 구간에만 위쪽에 "판결" 표시
@@ -11,12 +11,12 @@ review: false            # 기존 검토 대신 Sonnet 다듬기 (src/polish.py)
 polish:                  # 다른 AI(Sonnet)가 최소 정보로 평가 → 고쳐 쓰기 → 다시 평가 (2026-10-09 사용자 결정)
   model: claude-sonnet-5-5-medium
   max_rounds: 2
-voices:                   # 3인칭 해설이라 남성 해설 목소리 고정 (narrator: male)
+voices:                   # 3인칭 해설이라 남성 해설 목소리 고정
   female: ko-KR-InJoonNeural
   male: ko-KR-InJoonNeural
 min_year: 2005
 keywords: [층간소음, 주차, 결혼식, 중고거래, 반려견, 임대차보증금, 택배, 환불, 이웃, 누수, 예식장, 헬스장, 학원비, 축의금, 위자료 이웃, 애완견, 공동주택 소음, 숙박 예약 취소]
-disclaimer: "※ 실제 판결({court} {case_no})을 바탕으로 재구성한 이야기입니다. 대사와 세부 묘사는 각색되었으며, 등장인물은 가명입니다."
+disclaimer: "※ 실제 판결({court} {case_no})을 바탕으로 정리한 내용입니다. 장면 그림·영상은 이해를 돕기 위한 연출입니다."
 layout:
   header: {font_size: 66, position_y: 0.13, color: "#FFFFFF", box_color: "#000000", box_alpha: 0.55, margin: 70}
   label: {font_size: 150, position_y: 0.27, color: "#FFE400", outline: 10}

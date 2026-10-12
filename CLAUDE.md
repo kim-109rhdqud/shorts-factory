@@ -283,7 +283,7 @@ shorts-factory/
     - case 스타일: 3인칭 해설, 짧은 문장, "~습니다"+"~죠/~거든요", 과장·"여러분" 금지, 질문은 반론 하나. 구조: 상황+반전 훅 → 시간순 전개 → 소송 → 반론 질문 → 판결(여기서 처음 공개) → 한계 → 첫 장면으로 마무리. 약 1분 50초
     - 1차 테스트 실패 피드백 "처음부터 무슨 상황인지 모르겠고 흥미 없음" → 원인: 결과부터 말하는 첫 문장, 숫자 과다, 그리고 AI 검토 단계가 훅을 지워 버림
     - 수정: 첫 두 문장 규칙(누가 무슨 일 + 반전, 결과 숨김), 숫자 핵심만, 검토가 첫 문장을 바꾸면 검토 결과 폐기 (`script._first_sentence`)
-    - `style_checks` (style.yaml): AI 티 자동 검사 → 기준 벗어나면 다시 쓰기
+    - `style_checks` (style.yaml): AI 티 자동 검사 → 이후 Sonnet 방식으로 바뀌며 코드 삭제 (2026-10-12)
     - 테스트 채널 `channels/ssul_test.yaml` (active false, 그림 없이 무료 영상)
   - 판례 대본 자동 개선 (2026-10-09 새벽, 사용자 부재 중 9라운드): 보고서 `output/test/대본개선_보고서.txt` (드라이브 test/)
     - 핵심 변화: 검증된 사실 목록 단계 (`cases.fact_sheet`, `templates/case/facts.md`, 저장 `data/case_facts/`) → 대본은 목록으로만 작성 (`cases.writing_source`)
