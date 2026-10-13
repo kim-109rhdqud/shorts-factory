@@ -1,4 +1,9 @@
-"""edge-tts로 대본 → 음성(mp3) + 단어별 타이밍(json).
+"""대본 → 음성(mp3) + 단어별 타이밍(json).
+
+목소리 이름이 "supertonic:M1"처럼 시작하면 Supertonic(서버 안에서 직접 만드는 무료 음성, 수퍼톤 공개 모델,
+OpenRAIL-M 상업 사용 가능), 아니면 edge-tts.
+- edge-tts: 2026-10-10부터 마이크로소프트 접속 방식 변경으로 403 오류 → 판례 채널은 Supertonic으로 바꿈
+- Supertonic은 단어 타이밍을 주지 않음 → 문장마다 따로 만들고, 문장 안에서는 글자 수 비율로 단어 시간을 나눔
 
 구간(segments)별로 따로 만들어 이어 붙이고, 각 구간의 시작·끝 시간도 기록한다 (랭킹 순위 표시, 배경 전환용).
 
@@ -8,6 +13,7 @@
 import argparse
 import asyncio
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -47,6 +53,69 @@ def _restore_punctuation(text: str, words: list[dict]) -> None:
         cursor = end
 
 
+# ---------- Supertonic (서버 안에서 직접) ----------
+
+SUPERTONIC = "supertonic:"
+SENTENCE_GAP = 0.18   # 문장 사이 쉼 (초)
+_engine = None
+
+
+def _supertonic():
+    global _engine
+    if _engine is None:  # 모델 읽는 데 약 30초 → 한 번만
+        from supertonic import TTS
+        _engine = TTS()
+    return _engine
+
+
+def _speed(rate: str | None) -> float:
+    """edge-tts식 속도("+25%") → Supertonic 배속 (1.25). 0.7~2.0."""
+    m = re.match(r"([+-]?\d+)%", rate or "")
+    return min(2.0, max(0.7, 1 + int(m.group(1)) / 100 if m else 1.05))
+
+
+def _trim(wav, sr: int, threshold: float = 0.01):
+    """앞뒤 무음 잘라내기 (단어 시간을 실제 말소리에 맞추려고)."""
+    import numpy as np
+    loud = np.nonzero(np.abs(wav) > threshold)[0]
+    if not len(loud):
+        return wav
+    return wav[max(0, loud[0] - int(0.02 * sr)): loud[-1] + int(0.05 * sr)]
+
+
+def _supertonic_synthesize(text: str, voice: str, rate: str | None, mp3_path: Path) -> list[dict]:
+    import numpy as np
+    import soundfile as sf
+    tts = _supertonic()
+    style, speed, sr = tts.get_voice_style(voice), _speed(rate), tts.sample_rate
+    sentences = [x for x in re.split(r"(?<=[.?!])\s+", text) if x.strip()]
+    gap = np.zeros(int(SENTENCE_GAP * sr), dtype=np.float32)
+    pieces, words, t = [], [], 0.0
+    for i, sent in enumerate(sentences):
+        wav, _ = tts.synthesize(sent, voice_style=style, lang="ko", speed=speed)
+        wav = _trim(np.asarray(wav, dtype=np.float32).squeeze(), sr)
+        dur = len(wav) / sr
+        # 문장 안 단어 시간 = 글자 수 비율 (공백 뺀 글자 + 단어 사이 약간의 틈)
+        ws = sent.split()
+        weights = [len(re.sub(r"[^\w]", "", w)) + 0.6 for w in ws]
+        total, acc = sum(weights), 0.0
+        for w, wt in zip(ws, weights):
+            start = t + dur * acc / total
+            acc += wt
+            words.append({"text": w, "start": round(start, 3), "end": round(t + dur * acc / total, 3)})
+        pieces.append(wav)
+        t += dur
+        if i + 1 < len(sentences):
+            pieces.append(gap)
+            t += SENTENCE_GAP
+    wav_path = mp3_path.with_suffix(".wav")
+    sf.write(str(wav_path), np.concatenate(pieces), sr)
+    subprocess.run([config.tool("ffmpeg"), "-y", "-loglevel", "error", "-i", str(wav_path), "-c:a", "libmp3lame",
+                    "-b:a", "160k", str(mp3_path)], check=True)
+    wav_path.unlink()
+    return words
+
+
 def synthesize(text: str, out_dir: Path, voice: str | None = None, rate: str | None = None,
                pitch: str | None = None) -> tuple[Path, Path]:
     """음성과 타이밍 파일을 out_dir에 만들고 (mp3 경로, json 경로)를 돌려준다."""
@@ -59,6 +128,10 @@ def synthesize(text: str, out_dir: Path, voice: str | None = None, rate: str | N
     json_path = out_dir / "words.json"
 
     text = " ".join(text.split())  # 줄바꿈·연속 공백 정리
+    if voice.startswith(SUPERTONIC):
+        words = _supertonic_synthesize(text, voice[len(SUPERTONIC):], rate, mp3_path)
+        json_path.write_text(json.dumps(words, ensure_ascii=False, indent=1), encoding="utf-8")
+        return mp3_path, json_path
     words = asyncio.run(_synthesize(text, voice, rate, pitch, mp3_path))
     if not words:
         raise RuntimeError("edge-tts가 단어 타이밍을 주지 않았습니다.")

@@ -2,11 +2,10 @@ name: 판례 테스트             # 새 대본 방식 테스트용 (자동 실�
 active: false
 styles: [case]
 language: ko
-voices:                          # 화자 성별 → 목소리 (썰 스타일)
-  female: ko-KR-SunHiNeural
-  male: ko-KR-InJoonNeural
-speech_rate: "+30%"
-voice_pitch: "-4Hz"              # 다른 채널과 구분되게 살짝 낮은 톤
+voices:                          # 2026-10-13 edge-tts 막힘 → Supertonic M1 (서버 안에서 직접, 사용자 선택)
+  female: supertonic:M1
+  male: supertonic:M1
+speech_rate: "+25%"              # Supertonic 1.25배속
 daily_count: 2
 priority: 1                      # 숫자가 작을수록 먼저 제작 (구글 한도를 썰 채널이 먼저 쓰게)
 music_pools: [km_calm]            # 2026-10-08 새 선곡
