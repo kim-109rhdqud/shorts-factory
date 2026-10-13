@@ -78,6 +78,9 @@ def _wait_interval() -> None:
 
 # ---------- 프로그램별 호출 ----------
 
+_last_stderr: dict[str, str] = {}
+
+
 def _run(cmd: list[str], provider: str) -> subprocess.CompletedProcess:
     sandbox = config.path(_cfg()["sandbox"])
     sandbox.mkdir(parents=True, exist_ok=True)
@@ -90,6 +93,7 @@ def _run(cmd: list[str], provider: str) -> subprocess.CompletedProcess:
     text = (proc.stdout + proc.stderr).lower()
     if any(p in text for p in AUTH_PATTERNS):
         raise AuthExpired(f"{provider}: 로그인이 만료되었습니다. 다시 로그인해 주세요.")
+    _last_stderr[provider] = proc.stderr.lower()
     if proc.returncode != 0:
         raise LLMError(f"{provider}: 종료 코드 {proc.returncode}: {proc.stderr.strip()[-300:]}")
     return proc
@@ -106,7 +110,15 @@ def _call_agy(prompt: str, model: str | None = None) -> str:
     model = model or _cfg().get("agy_model")
     if model:
         cmd += ["--model", model]
-    out = json.loads(_run(cmd, "agy").stdout)
+    try:
+        proc = _run(cmd, "agy")
+    except LLMError as e:
+        if model and "available models" in str(e).lower() + _last_stderr.get("agy", ""):
+            log.warning("agy 모델 '%s'이(가) 없어짐 → 기본 모델로 (설정의 agy_model을 바꿔야 함, `agy models`로 목록 확인)", model)
+            proc = _run(cmd[:cmd.index("--model")], "agy")
+        else:
+            raise
+    out = json.loads(proc.stdout)
     if out.get("status") != "SUCCESS" or not out.get("response"):
         denied = [a.get("display_name") for a in out.get("denied_actions", [])]
         raise LLMError(f"agy: 빈 응답 (상태 {out.get('status')}, 막힌 동작 {denied})")

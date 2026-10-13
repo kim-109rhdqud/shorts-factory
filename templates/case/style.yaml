@@ -6,7 +6,7 @@ min_chars: 300            # 공백 제외. 길이는 크게 신경 쓰지 않음
 max_chars: 700
 segment_pause: 0.6        # 사연 → 판결 넘어갈 때 잠깐 뜸
 extra_keys: [header, narrator]
-agy_model: gemini-3.1-pro-high
+agy_model: gemini-3.8-flash-high   # 2026-10-13 Antigravity에서 Gemini 3.1 Pro가 빠져 3.8 Flash(High)로
 review: false            # 기존 검토 대신 Sonnet 다듬기 (src/polish.py)
 polish:                  # 다른 AI(Sonnet)가 최소 정보로 평가 → 고쳐 쓰기 → 다시 평가 (2026-10-09 사용자 결정)
   model: claude-sonnet-5-5-medium

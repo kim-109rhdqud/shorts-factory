@@ -14,8 +14,9 @@ import argparse
 import datetime as dt
 import logging
 import time
+from pathlib import Path
 
-from src import channels, config, db, export, llm, planner
+from src import channels, config, db, edits, export, llm, planner
 from src.make_video import SkipVideo, make_from_topic
 
 log = logging.getLogger("main")
@@ -77,9 +78,12 @@ def run(channel_ids: list[str], count: int | None = None, dry_run: bool = False)
                 db.record(uid, cid, item["style"], "failed", topic=info.get("topic") or item["topic"],
                           case_id=info.get("case_id"), error=str(e)[:500])
                 summary["failed"].append({"channel": cid, "topic": item["topic"], "error": str(e)[:200]})
-        for folder in uploaded:  # 채널의 오늘 폴더를 한 번에 드라이브로
+        for folder in uploaded:  # 채널의 오늘 폴더를 한 번에 드라이브로 (+ 영상마다 대본 문서·Flow 작업 폴더)
             try:
                 log.info("드라이브 업로드: %s", export.upload(folder))
+                for d in summary["done"]:
+                    if d.get("path") and Path(d["path"]).parent == folder:
+                        edits.publish(Path(d["path"]))
             except Exception as e:
                 log.exception("드라이브 업로드 실패")
                 summary["failed"].append({"channel": cid, "error": f"드라이브 업로드 실패: {e}"})

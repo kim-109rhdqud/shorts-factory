@@ -171,6 +171,15 @@ def fetch_flow_clips(pfile: Path, project: dict) -> bool:
     return changed
 
 
+def publish(video: Path) -> None:
+    """이미 보관된 재료로 대본 문서와 Flow 작업 폴더를 드라이브에 올린다 (자동 제작은 영상을 다 만든 뒤 한꺼번에 올려서)."""
+    pdir = video.with_name(f"{video.stem}_project")
+    project = json.loads((pdir / "project.json").read_text(encoding="utf-8"))
+    upload_doc(video, pdir / doc_name(video))
+    if project.get("flow"):
+        upload_flow_work(video, pdir, project)
+
+
 def upload_doc(video: Path, doc: Path) -> None:
     """텍스트를 구글 문서로 올린다 (폰·브라우저에서 바로 고칠 수 있게)."""
     subprocess.run([config.tool("rclone"), "copyto", str(doc), f"{_remote(video.parent)}/{doc.name}",

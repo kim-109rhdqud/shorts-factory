@@ -321,3 +321,7 @@ shorts-factory/
     - 설명란: "장면 영상은 AI(Google Flow)로 생성" 자동 표기
     - 시험 통과 (2026-10-12, 6장면 교체 확인. Flow 워터마크 ✦는 지우지 않고 그대로 사용 — 사용자 결정)
     - 쉬는 날: config.yaml `schedule.off_days` (일요일은 cron `1-6`). `_상태.txt`에 Flow 남은 장면 표시 (`main.flow_todo`)
+  - 2026-10-13 장애 2건:
+    - edge-tts 403 (마이크로소프트가 10-10에 접속 방식 변경, 전 세계 공통) → 판례 채널 목소리를 **Supertonic M1**로 교체 (사용자 선택). 서버 안에서 직접 생성(가입·인터넷 불필요, 모델 OpenRAIL-M 상업 사용 가능), 메모리 약 650MB, 모델 읽기 약 30초. 채널 voices에 `supertonic:M1`, 속도 `+25%` → 1.25배. 단어 타이밍은 문장별 생성 + 문장 안 글자 수 비율 (`tts._supertonic_synthesize`)
+    - Antigravity에서 Gemini 3.1 Pro가 빠짐 → 작가 모델 `gemini-3.8-flash-high`. 모델이 없어지면 Claude로 넘어가지 않고 agy 기본 모델로 다시 시도 (`llm._call_agy`)
+    - 자동 제작(main)에서 대본 문서·Flow 작업 폴더가 드라이브에 안 올라가던 문제 수정 (`edits.publish`)
