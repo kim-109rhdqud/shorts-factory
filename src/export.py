@@ -5,6 +5,8 @@
 """
 import argparse
 import datetime as dt
+import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -36,12 +38,33 @@ def save(video: Path, channel: str, upload_text: str = "") -> Path:
     return dest
 
 
+def drive_names(folder: Path) -> dict[str, str]:
+    """Flow 장면이 들어간 영상은 드라이브에 '001.mp4' 대신 '<제목>.mp4'로 올린다 (사용자 결정 2026-10-17).
+    {서버 파일 이름: 드라이브 파일 이름}. 서버 쪽 이름은 그대로 (재료 폴더·문서가 번호를 씀)."""
+    names = {}
+    for pfile in folder.glob("*_project/project.json"):
+        project = json.loads(pfile.read_text(encoding="utf-8"))
+        up = folder / f"{Path(project['video']).stem}_upload.txt"
+        if not project.get("rendered_clips") or not up.exists():
+            continue
+        m = re.search(r"\[제목\]\n([^\n]+)", up.read_text(encoding="utf-8"))
+        title = re.sub(r'[\\/:*?"<>|]', "", m.group(1)).strip() if m else ""
+        if title:
+            names[project["video"]] = f"{title}.mp4"
+    return names
+
+
 def upload(folder: Path) -> str:
     """output 기준 같은 경로로 드라이브에 복사. 드라이브 경로를 돌려준다."""
     out_root = config.path(config.load()["paths"]["output"])
     remote = f"{config.load()['drive']['remote']}/{folder.resolve().relative_to(out_root).as_posix()}"
-    subprocess.run([config.tool("rclone"), "copy", str(folder), remote, "--exclude", "_work/**",
-                    "--exclude", "*_project/**"], check=True)  # 재료 폴더는 서버에만 (대본 문서는 따로 올림)
+    rclone, renamed = config.tool("rclone"), drive_names(folder)
+    excludes = [a for v in renamed for a in ("--exclude", v)]
+    subprocess.run([rclone, "copy", str(folder), remote, "--exclude", "_work/**",
+                    "--exclude", "*_project/**", *excludes], check=True)  # 재료 폴더는 서버에만 (대본 문서는 따로 올림)
+    for video, name in renamed.items():
+        subprocess.run([rclone, "copyto", str(folder / video), f"{remote}/{name}"], check=True)
+        subprocess.run([rclone, "deletefile", f"{remote}/{video}"], capture_output=True)  # 번호 이름 옛 파일
     return remote
 
 

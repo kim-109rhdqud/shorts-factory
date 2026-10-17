@@ -28,10 +28,18 @@ def on_drive(folder: Path) -> bool:
     """폴더의 파일이 드라이브에 전부 (같은 크기로) 있는지."""
     out_root = config.path(config.load()["paths"]["output"])
     remote = f"{config.load()['drive']['remote']}/{folder.resolve().relative_to(out_root).as_posix()}"
+    renamed = export.drive_names(folder)  # 드라이브에서 제목으로 이름이 바뀐 영상
+    excludes = [a for v in renamed for a in ("--exclude", v)]
     r = subprocess.run([config.tool("rclone"), "check", str(folder), remote, "--one-way", "--size-only",
-                        "--exclude", "*_project/**"],
+                        "--exclude", "*_project/**", *excludes],
                        capture_output=True, text=True)
-    return r.returncode == 0
+    if r.returncode != 0:
+        return False
+    for video, name in renamed.items():
+        r = subprocess.run([config.tool("rclone"), "lsf", f"{remote}/{name}"], capture_output=True, text=True)
+        if not r.stdout.strip():
+            return False
+    return True
 
 
 def old_day_folders(keep_days: int) -> list[Path]:
