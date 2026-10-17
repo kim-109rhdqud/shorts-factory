@@ -325,3 +325,6 @@ shorts-factory/
     - edge-tts 403 (마이크로소프트가 10-10에 접속 방식 변경, 전 세계 공통) → 판례 채널 목소리를 **Supertonic M1**로 교체 (사용자 선택). 서버 안에서 직접 생성(가입·인터넷 불필요, 모델 OpenRAIL-M 상업 사용 가능), 메모리 약 650MB, 모델 읽기 약 30초. 채널 voices에 `supertonic:M1`, 속도 `+25%` → 1.25배. 단어 타이밍은 문장별 생성 + 문장 안 글자 수 비율 (`tts._supertonic_synthesize`)
     - Antigravity에서 Gemini 3.1 Pro가 빠짐 → 작가 모델 `gemini-3.8-flash-high`. 모델이 없어지면 Claude로 넘어가지 않고 agy 기본 모델로 다시 시도 (`llm._call_agy`)
     - 자동 제작(main)에서 대본 문서·Flow 작업 폴더가 드라이브에 안 올라가던 문제 수정 (`edits.publish`)
+  - 2026-10-17:
+    - 04:00에 edits.sh가 잠금을 먼저 잡으면 daily.sh가 조용히 건너뛰던 문제 (10-14, 10-17 영상 빠짐) → daily.sh는 잠금을 최대 1시간 기다림 (`flock -w 3600`)
+    - Flow 장면이 들어가 다시 만든 영상은 드라이브에 `<제목>.mp4`로 올림 (사용자 결정). 서버 쪽은 `001.mp4` 그대로 (`export.drive_names`, cleanup도 반영)
