@@ -85,8 +85,9 @@ def _find_outputs(conversation_id: str, n: int) -> list[Path | None]:
     return found
 
 
-def generate(descriptions: list[str], out_dir: Path, art_style: str, characters: str = "") -> list[Path | None]:
-    """장면 설명들 → out_dir/scene{i}.jpg. 못 만든 장면은 None."""
+def generate(descriptions: list[str], out_dir: Path, art_style: str, characters: str = "",
+             retry: bool = True) -> list[Path | None]:
+    """장면 설명들 → out_dir/scene{i}.jpg. 못 만든 장면은 한 번 더 그려 보고, 그래도 없으면 None."""
     n = len(descriptions)
     if _usage_today() + n > _cfg()["daily_limit"]:
         raise QuotaExhausted(f"오늘 그림 상한({_cfg()['daily_limit']}장) 도달")
@@ -117,6 +118,20 @@ def generate(descriptions: list[str], out_dir: Path, art_style: str, characters:
     if any(r is None for r in results) and _quota_error_in(conv):
         _add_usage(_cfg()["daily_limit"])  # 오늘 남은 시도는 바로 건너뛰게
         raise QuotaExhausted(f"구독 그림 한도 초과 (429 RESOURCE_EXHAUSTED), {sum(r is not None for r in results)}/{n}장만 생성")
+    missing = [i for i, r in enumerate(results) if r is None]
+    if missing and retry:  # agy가 일부만 그리고 끝내는 경우가 있음 (2026-10-20: 4/6장)
+        log.info("빠진 장면 %s 다시 그리기", [i + 1 for i in missing])
+        try:
+            extra = generate([descriptions[i] for i in missing], out_dir / "_retry", art_style, characters, retry=False)
+        except (ImageError, QuotaExhausted) as e:
+            log.warning("빠진 장면 다시 그리기 실패: %s", e)
+            extra = []
+        for i, src in zip(missing, extra):
+            if src:
+                dest = out_dir / f"scene{i + 1}{src.suffix}"
+                shutil.move(str(src), dest)
+                results[i] = dest
+        shutil.rmtree(out_dir / "_retry", ignore_errors=True)
     return results
 
 
