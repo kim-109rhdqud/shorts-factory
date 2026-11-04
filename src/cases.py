@@ -40,7 +40,11 @@ def _get(path: str, **params) -> dict:
     req = urllib.request.Request(f"{API}/{path}?{urllib.parse.urlencode(params)}",
                                  headers={"User-Agent": "shorts-factory/1.0"})
     with urllib.request.urlopen(req, timeout=60) as r:
-        return json.load(r)
+        data = json.load(r)
+    if "result" in data and "msg" in data:  # 2026-10-30부터 시험용 ID(test)는 막힘
+        raise RuntimeError(f"법제처 API 사용 거절: {data['result']} → open.law.go.kr 본인 계정(.env LAW_API_OC)과 "
+                           "서버 IP 등록 필요")
+    return data
 
 
 def search(keyword: str, limit: int = 100) -> list[dict]:
